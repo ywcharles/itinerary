@@ -106,7 +106,7 @@ export default function CalendarEvent({
   };
 
   const beginDrag = (mode: DragMode, e: React.PointerEvent<HTMLElement>) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === "touch" || e.button !== 0) return;
     if (!draggable) {
       // Still select it, and keep the grid from starting a "create" drag.
       e.stopPropagation();
@@ -169,10 +169,11 @@ export default function CalendarEvent({
         }
       }}
       onPointerDown={onMoveDown}
+      onClick={(e) => { if ((e.nativeEvent as PointerEvent).pointerType === "touch") onClick(); }}
       onDoubleClick={onEdit}
       {...dragHandlers}
       // Classic calendar block in a pastel color; the selected one gets a blue outline.
-      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-none select-none ${
+      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-pan-y select-none ${
         preview ? "cursor-grabbing z-20 opacity-90" : draggable ? "cursor-grab hover:brightness-[0.97]" : "cursor-pointer hover:brightness-[0.97]"
       } ${selected ? "z-10 ring-2 ring-primary" : "ring-1 ring-surface"}`}
       style={{

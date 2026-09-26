@@ -32,15 +32,15 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
   }, [day]);
 
   return (
-    <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col p-4 gap-3">
+    <div className="rounded-2xl border border-line bg-surface shadow-sm h-full min-w-0 w-full flex flex-col p-3 sm:p-4 gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{formatDay(day)}</h2>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:ml-auto sm:w-auto">
           {!loading && stops.length > 0 && <DayWeather day={day} location={weatherLocation} />}
         <button
           type="button"
           onClick={() => onAdd()}
-          className="rounded-lg bg-primary px-3.5 h-9 text-sm text-white font-medium shadow-sm transition-colors hover:bg-primary/90"
+          className="rounded-lg bg-primary px-3.5 h-11 lg:h-9 text-sm text-white font-medium shadow-sm transition-colors hover:bg-primary/90"
         >
           + Add activity
         </button>
@@ -58,7 +58,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
               aria-selected={d === day}
               onClick={() => onDayChange(d)}
 
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+              className={`min-h-11 lg:min-h-0 shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
                 d === day ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"
               }`}
             >

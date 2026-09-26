@@ -95,10 +95,17 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     [sortedStops],
   );
 
+  const revealDetails = () => {
+    if (window.matchMedia("(max-width: 63.999rem)").matches) {
+      document.getElementById("trip-details")?.scrollIntoView({ block: "start" });
+    }
+  };
+
   // Picking an activity (calendar or map) closes the ideas panel.
   const selectStop = useCallback((id: string) => {
     setSelectedId(id);
     setIdeasFor(null);
+    revealDetails();
   }, []);
 
   // The activity the user clicked, if it's on the shown day.
@@ -233,6 +240,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
   const openIdeas = (fromId: string, toId: string, freeMinutes: number) => {
     setSelectedId(null);
     setIdeasFor({ fromId, toId, freeMinutes });
+    revealDetails();
   };
 
   const openAdd = (range?: TimeRange) => {
@@ -299,10 +307,15 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="itinerary-page flex-1 min-h-0 min-w-0 flex flex-col">
       <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length > 0} />
-      <div className="flex-1 min-h-0 flex gap-4 p-4">
-        <div className="w-1/2 h-full">
+      <nav aria-label="Itinerary sections" className="flex gap-2 px-3 pt-3 lg:hidden">
+        {[["schedule", "Your day"], ["map", "Map"], ["details", "Activity details"]].map(([id, label]) => (
+          <a key={id} href={`#trip-${id}`} className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-line bg-surface px-2 text-center text-sm font-medium text-muted hover:text-primary">{label}</a>
+        ))}
+      </nav>
+      <main className="flex flex-col gap-4 p-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:flex-1 lg:min-h-0 lg:flex-row lg:p-4">
+        <section id="trip-schedule" aria-label="Daily schedule" className="h-[70svh] min-h-[28rem] min-w-0 scroll-mt-3 lg:h-full lg:min-h-0 lg:flex-1">
           <Schedule
             days={days}
             day={day}
@@ -318,17 +331,17 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
             onSuggest={openIdeas}
             aiPreview={aiPreview}
           />
-        </div>
-        <div className="w-1/2 h-full flex flex-col gap-4">
-          <div className="flex-[3] min-h-64">
+        </section>
+        <div className="min-w-0 flex flex-col gap-4 lg:h-full lg:flex-1">
+          <section id="trip-map" aria-label="Trip map" className="h-[45svh] min-h-72 scroll-mt-3 lg:h-auto lg:flex-[3] lg:min-h-48">
             <Maps
               stops={dayStops}
               selectedId={selectedStop?.id ?? null}
               onSelect={selectStop}
               onPlaceClick={openAddForPlace}
             />
-          </div>
-          <div className="flex-[2] min-h-0">
+          </section>
+          <section id="trip-details" aria-label="Activity details and ideas" className="min-w-0 scroll-mt-3 lg:flex-[2] lg:min-h-0">
             {ideasGap && ideasFor ? (
               <Suggestions
                 key={`${ideasFor.fromId}->${ideasFor.toId}`}
@@ -348,9 +361,9 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
                 deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
               />
             )}
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
 
       {reviewOpen && <ReviewPanel key={day} itineraryId={itineraryId} day={day} stops={dayStops} allStops={stops} onClose={() => { setReviewOpen(false); setAiPreview(null); }} onPreview={previewChange} onApply={applyChange} onUndo={undoAiChange} canUndo={!!undoChange} />}
 

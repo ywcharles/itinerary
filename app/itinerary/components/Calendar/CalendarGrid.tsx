@@ -92,7 +92,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     // Only start a drag on empty grid space, not on an existing event.
-    if (e.target !== e.currentTarget || e.button !== 0) return;
+    if (e.pointerType === "touch" || e.target !== e.currentTarget || e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const minutes = minutesAt(offsetY(e));
     setDrag({ from: minutes, to: minutes });
@@ -159,7 +159,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
       {/* Events; drag on empty space to create a new one */}
       <div
-        className="absolute left-16 right-0 top-0 bottom-0 cursor-crosshair touch-none select-none"
+        className="absolute left-16 right-0 top-0 bottom-0 cursor-crosshair touch-pan-y select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
