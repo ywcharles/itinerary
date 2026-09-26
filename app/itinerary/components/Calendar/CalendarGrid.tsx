@@ -1,23 +1,19 @@
 import React from "react";
 import CalendarEvent from "./CalendarEvent";
 import { formatHour } from "./calendarUtils";
+import { Stop } from "../../data";
 
 const START_HOUR = 6;
 const END_HOUR = 22;
 const HOUR_HEIGHT = 80;
 
-type Stop = {
-  id: string | number;
-  start_time: string;
-  end_time: string;
-  description: string;
-};
-
 type Props = {
   stops: Stop[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 };
 
-export default function CalendarGrid({ stops }: Props) {
+export default function CalendarGrid({ stops, selectedId, onSelect }: Props) {
   const totalHours = END_HOUR - START_HOUR;
 
   return (
@@ -54,9 +50,11 @@ export default function CalendarGrid({ stops }: Props) {
         {stops.map((stop) => (
           <CalendarEvent
             key={stop.id}
-            title={stop.description}
+            title={stop.name}
             start={stop.start_time}
             end={stop.end_time}
+            selected={stop.id === selectedId}
+            onClick={() => onSelect(stop.id)}
           />
         ))}
       </div>

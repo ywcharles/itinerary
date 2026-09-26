@@ -1,4 +1,15 @@
-export const mockStops = [
+export type Stop = {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  google_map_links: string;
+  coordinates: { lat: number; lng: number };
+  description: string;
+  image: string;
+};
+
+export const mockStops: Stop[] = [
   {
     id: 'stop-1',
     start_time: '2026-09-26T09:00:00',
@@ -8,7 +19,8 @@ export const mockStops = [
       lat: 45.4215,
       lng: -75.6972,
     },
-    description: 'Breakfast at Café',
+    name: 'Breakfast at Café',
+    description: '',
     image: '/images/cafe.jpg',
   },
   {
@@ -20,7 +32,8 @@ export const mockStops = [
       lat: 45.4236,
       lng: -75.7009,
     },
-    description: 'Visit Parliament Hill',
+    name: 'Parliament Hill',
+    description: '',
     image: '/images/parliament.jpg',
   },
   {
@@ -32,7 +45,8 @@ export const mockStops = [
       lat: 45.4215,
       lng: -75.6972,
     },
-    description: 'Lunch',
+    name: 'Lunch',
+    description: '',
     image: '/images/lunch.jpg',
   },
 ];

@@ -11,12 +11,16 @@ type Props = {
   title: string;
   start: string;
   end: string;
+  selected: boolean;
+  onClick: () => void;
 };
 
 export default function CalendarEvent({
   title,
   start,
   end,
+  selected,
+  onClick,
 }: Props) {
   const startDate = new Date(start);
   const endDate = new Date(end);
@@ -29,8 +33,12 @@ export default function CalendarEvent({
   );
 
   return (
-    <div
-      className="absolute left-2 right-4 rounded-lg bg-secondary border border-secondary p-3 overflow-hidden"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`absolute left-2 right-4 rounded-lg bg-secondary border p-3 overflow-hidden text-left cursor-pointer ${
+        selected ? "border-primary ring-2 ring-primary" : "border-secondary"
+      }`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
@@ -41,6 +49,6 @@ export default function CalendarEvent({
       <p className="text-xs text-white mt-1">
         {formatTime(startDate)} – {formatTime(endDate)}
       </p>
-    </div>
+    </button>
   );
 }
