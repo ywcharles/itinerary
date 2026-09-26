@@ -22,6 +22,8 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   // null = not chosen yet; falls back to the first day with stops (they load asynchronously).
   const [chosenDay, setChosenDay] = useState<string | null>(null);
   const [addRange, setAddRange] = useState<TimeRange | null>(null);
+  // Set when the dialog was opened by clicking a landmark on the map.
+  const [addPlaceId, setAddPlaceId] = useState<string | null>(null);
 
   const sortedStops = useMemo(() => [...stops].sort(byStartTime), [stops]);
   const day = chosenDay ?? (sortedStops[0] ? dayKey(sortedStops[0].start_time) : dayKey(new Date()));
@@ -39,7 +41,10 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     () => sortedStops.filter((stop) => stopDays.get(stop.id)?.includes(day)),
     [sortedStops, stopDays, day],
   );
-  const selectedStop = dayStops.find((stop) => stop.id === selectedId) ?? null;
+  // The activity the user clicked, if it's on the shown day.
+  const clickedStop = dayStops.find((stop) => stop.id === selectedId) ?? null;
+  // Shown in detail: the clicked one, otherwise the day's first activity.
+  const selectedStop = clickedStop ?? dayStops[0] ?? null;
 
   // Bias place searches toward where the trip already happens.
   const searchCenter = useMemo(() => {
@@ -74,7 +79,8 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   }, [removeStop]);
 
   // Backspace/Delete removes the selected activity, unless the user is typing somewhere.
-  const selectedStopId = selectedStop?.id ?? null;
+  // Only an activity the user actually picked, so Backspace right after opening a trip deletes nothing.
+  const selectedStopId = clickedStop?.id ?? null;
   useEffect(() => {
     if (!selectedStopId || addRange) return;
     const onKey = (e: KeyboardEvent) => {
@@ -116,7 +122,28 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     }
   }, [updateStop, refetch]);
 
+  const closeAdd = () => {
+    setAddRange(null);
+    setAddPlaceId(null);
+  };
+
+  // A landmark clicked on the map goes into the next free hour after the day's last activity.
+  const openAddForPlace = (placeId: string) => {
+    const lastEnd = dayStops.reduce<Date | null>((latest, stop) => {
+      const end = new Date(stop.end_time);
+      return dayKey(end) === day && (!latest || end > latest) ? end : latest;
+    }, null);
+    const endOfDay = 24 * 60;
+    const afterLast = lastEnd
+      ? Math.ceil((lastEnd.getHours() * 60 + lastEnd.getMinutes()) / 15) * 15
+      : 12 * 60;
+    const start = Math.min(afterLast, endOfDay - 60);
+    setAddPlaceId(placeId);
+    setAddRange({ start: toTimestamp(day, start), end: toTimestamp(day, start + 60) });
+  };
+
   const openAdd = (range?: TimeRange) => {
+    setAddPlaceId(null);
     setAddRange(range ?? { start: toTimestamp(day, 12 * 60), end: toTimestamp(day, 13 * 60) });
   };
 
@@ -125,7 +152,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     const saved = await addStop({ ...draft, itinerary_id: itineraryId, stop_order: nextStopOrder });
     setChosenDay(dayKey(saved.start_time));
     setSelectedId(saved.id);
-    setAddRange(null);
+    closeAdd();
   };
 
   return (
@@ -152,7 +179,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             stops={dayStops}
             loading={loading}
             error={error}
-            selectedId={selectedId}
+            selectedId={selectedStop?.id ?? null}
             onSelect={setSelectedId}
             onAdd={openAdd}
             onTimeChange={changeTime}
@@ -160,7 +187,12 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
         </div>
         <div className="w-1/2 h-full flex flex-col gap-4">
           <div className="flex-[3] min-h-64">
-            <Maps stops={dayStops} selectedId={selectedStop?.id ?? null} onSelect={setSelectedId} />
+            <Maps
+              stops={dayStops}
+              selectedId={selectedStop?.id ?? null}
+              onSelect={setSelectedId}
+              onPlaceClick={openAddForPlace}
+            />
           </div>
           <div className="flex-[2] min-h-0">
             <Details
@@ -179,8 +211,9 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
           tripName={tripName}
           searchCenter={searchCenter}
           initialRange={addRange}
+          initialPlaceId={addPlaceId}
           onAdd={saveStop}
-          onClose={() => setAddRange(null)}
+          onClose={closeAdd}
         />
       )}
     </div>

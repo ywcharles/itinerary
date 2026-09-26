@@ -71,6 +71,10 @@ export default function CalendarEvent({
     START_HOUR,
     HOUR_HEIGHT,
   );
+  const compact = height < 40;
+  const timeLabel = `${endsLaterDay ? `${formatDay(dayKey(startDate), "short")}, ` : ""}${formatTime(startDate)} – ${
+    endsLaterDay ? `${formatDay(dayKey(endDate), "short")}, ` : ""
+  }${formatTime(endDate)}`;
 
   // New start/end for a drag of `deltaMinutes`, kept inside the visible grid.
   const applyDelta = (mode: DragMode, deltaMinutes: number) => {
@@ -161,19 +165,16 @@ export default function CalendarEvent({
       }}
       onPointerDown={onMoveDown}
       {...dragHandlers}
-      className={`group absolute flex flex-col justify-start rounded-lg border border-l-4 px-2.5 py-1.5 overflow-hidden text-left text-ink touch-none select-none transition-shadow ${
-        preview ? "cursor-grabbing z-20 shadow-lg" : draggable ? "cursor-grab hover:shadow-md" : "cursor-pointer hover:shadow-md"
-      } ${
-        selected
-          ? "z-10 border-primary bg-[#E3EEF5] shadow-md"
-          : "border-secondary/40 border-l-secondary bg-[#EEF4EE]"
-      }`}
+      // Classic calendar block: solid color, white text, thin white outline to separate neighbours.
+      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left text-white ring-1 ring-white touch-none select-none ${
+        preview ? "cursor-grabbing z-20 opacity-90" : draggable ? "cursor-grab hover:brightness-110" : "cursor-pointer hover:brightness-110"
+      } ${selected ? "z-10 bg-primary" : "bg-[#4E7D51]"}`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
-        // Overlapping events share the width in columns (8px left inset, 16px right).
-        left: `calc(8px + (100% - 24px) * ${lane.column / lane.columns})`,
-        width: `calc((100% - 24px) / ${lane.columns} - ${lane.columns > 1 ? 4 : 0}px)`,
+        // Overlapping events share the width in columns (2px left inset, 8px right).
+        left: `calc(2px + (100% - 10px) * ${lane.column / lane.columns})`,
+        width: `calc((100% - 10px) / ${lane.columns} - ${lane.columns > 1 ? 2 : 0}px)`,
       }}
     >
       {/* Edge handles for changing start and end, like Google Calendar.
@@ -195,21 +196,12 @@ export default function CalendarEvent({
         </div>
       )}
 
-      <p className="flex items-center gap-1.5 text-sm font-medium leading-tight">
-        <span
-          className={`inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white ${
-            selected ? "bg-primary" : "bg-secondary"
-          }`}
-        >
-          {number}
-        </span>
-        <span className="truncate">{title}</span>
+      {/* Short blocks get title and time on one line, like a classic calendar. */}
+      <p className={`text-xs font-semibold leading-4 ${compact ? "truncate" : "line-clamp-2"}`}>
+        {number}. {title}
+        {compact && <span className="font-normal text-white/85">, {timeLabel}</span>}
       </p>
-
-      <p className="text-xs text-muted mt-0.5 truncate">
-        {endsLaterDay && `${formatDay(dayKey(startDate), "short")}, `}{formatTime(startDate)} –{" "}
-        {endsLaterDay && `${formatDay(dayKey(endDate), "short")}, `}{formatTime(endDate)}
-      </p>
+      {!compact && <p className="truncate text-[11px] leading-4 text-white/85">{timeLabel}</p>}
     </div>
   );
 }

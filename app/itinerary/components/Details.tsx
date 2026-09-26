@@ -323,7 +323,7 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
               onClick={() => onDelete(stop.id)}
               disabled={deleting}
               title="Delete activity (Backspace)"
-              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
             >
               {deleting ? "Deleting…" : "Delete"}
             </button>

@@ -124,24 +124,30 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
         height: `${totalHours * HOUR_HEIGHT}px`,
       }}
     >
-      {/* Time grid */}
+      {/* Time grid: hour labels in a gutter, solid hour lines and dotted half-hour lines */}
+      <div className="absolute left-16 top-0 bottom-0 border-l border-line" />
       {Array.from(
         { length: totalHours + 1 },
         (_, index) => {
           const hour = START_HOUR + index;
 
           return (
-            <div
-              key={hour}
-              className="absolute left-0 right-0 border-t border-line"
-              style={{
-                top: `${index * HOUR_HEIGHT}px`,
-              }}
-            >
-              <div className="absolute left-0 -top-2 w-16 bg-white px-2 text-[11px] text-muted">
-                {formatHour(hour)}
+            <React.Fragment key={hour}>
+              <div
+                className="absolute left-14 right-0 border-t border-line"
+                style={{ top: `${index * HOUR_HEIGHT}px` }}
+              >
+                <div className="absolute right-full -top-2 w-14 pr-2 text-right text-[11px] leading-4 text-muted">
+                  {index > 0 && index < totalHours ? formatHour(hour) : ""}
+                </div>
               </div>
-            </div>
+              {index < totalHours && (
+                <div
+                  className="absolute left-16 right-0 border-t border-dotted border-line"
+                  style={{ top: `${(index + 0.5) * HOUR_HEIGHT}px` }}
+                />
+              )}
+            </React.Fragment>
           );
         },
       )}
@@ -171,16 +177,9 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
           return (
             <div
               key={`${from.id}->${to.id}`}
-              className="pointer-events-none absolute left-2 right-4"
+              className="pointer-events-none absolute left-0.5 right-2"
               style={{ top: `${top}px`, height: `${gap}px` }}
             >
-              {gap > 0 && (
-                <div
-                  className={`absolute right-8 top-0 bottom-0 border-l-2 border-dotted ${
-                    tooTight ? "border-red-300" : "border-muted/40"
-                  }`}
-                />
-              )}
               <span
                 title={
                   tooTight
@@ -189,11 +188,10 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 }
                 // Always on the right, where it never covers a title; centered in the gap
                 // (for back-to-back activities it sits on the boundary).
-                className={`pointer-events-auto absolute right-2 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium shadow-sm ${
-                  tooTight
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-line bg-white text-muted"
-                }`}
+                // Plain text in the gap; when there's no room it needs a white backing to sit on the blocks.
+                className={`pointer-events-auto absolute right-1 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap text-[11px] leading-4 ${
+                  gap < 16 ? "rounded-sm bg-white px-1 ring-1 ring-line" : ""
+                } ${tooTight ? "font-medium text-red-600" : "text-muted"}`}
               >
                 <span aria-hidden>{leg.mode === "WALKING" ? "🚶" : "🚗"}</span>
                 {formatDuration(leg.durationMinutes)}
@@ -220,7 +218,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
         {preview && preview.height > 0 && (
           <div
-            className="pointer-events-none absolute left-2 right-4 rounded-lg border-2 border-dashed border-primary bg-primary/10 px-3 py-1 text-xs text-primary"
+            className="pointer-events-none absolute left-0.5 right-2 rounded-[4px] border border-dashed border-primary bg-primary/10 px-1.5 py-1 text-[11px] text-primary"
             style={{ top: `${preview.top}px`, height: `${preview.height}px` }}
           >
             {formatTime(new Date(toTimestamp(day, Math.min(drag.from, drag.to))))} –{" "}

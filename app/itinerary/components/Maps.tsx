@@ -14,6 +14,8 @@ type Props = {
   stops: Stop[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  // Called with the Google place id when a landmark on the map is clicked.
+  onPlaceClick: (placeId: string) => void;
 };
 
 type Located = { stop: Stop; number: number; position: LatLng };
@@ -21,7 +23,7 @@ type Located = { stop: Stop; number: number; position: LatLng };
 // World view until the itinerary has located stops.
 const WORLD = { center: { lat: 20, lng: 0 }, zoom: 2 };
 
-export default function Maps({ stops, selectedId, onSelect }: Props) {
+export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Props) {
   // Numbers follow the calendar order; stops without coordinates keep their number but get no pin.
   // Keyed on the fields the map uses, so editing a stop's notes doesn't redraw routes and pins.
   const mapKey = stops
@@ -53,6 +55,21 @@ export default function Maps({ stops, selectedId, onSelect }: Props) {
     });
     return () => { active = false; };
   }, []);
+
+  // Clicking one of Google's landmarks adds it as an activity instead of opening Google's info window.
+  const onPlaceClickRef = useRef(onPlaceClick);
+  useEffect(() => {
+    onPlaceClickRef.current = onPlaceClick;
+  });
+  useEffect(() => {
+    if (!map) return;
+    const listener = map.addListener("click", (e: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
+      if (!("placeId" in e) || !e.placeId) return;
+      e.stop();
+      onPlaceClickRef.current(e.placeId);
+    });
+    return () => listener.remove();
+  }, [map]);
 
   // Fit the view to the shown stops whenever the set of stops changes (e.g. switching days).
   useEffect(() => {

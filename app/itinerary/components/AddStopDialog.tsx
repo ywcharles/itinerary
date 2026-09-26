@@ -78,11 +78,13 @@ type Props = {
   // Where to search first; null searches without a location preference.
   searchCenter: LatLng | null;
   initialRange: TimeRange;
+  // Preselects this Google place (e.g. a landmark clicked on the map).
+  initialPlaceId?: string | null;
   onAdd: (stop: StopDraft) => Promise<unknown>;
   onClose: () => void;
 };
 
-export default function AddStopDialog({ tripName, searchCenter, initialRange, onAdd, onClose }: Props) {
+export default function AddStopDialog({ tripName, searchCenter, initialRange, initialPlaceId, onAdd, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [date, setDate] = useState(() => dayKey(initialRange.start));
   const [start, setStart] = useState(() => timeOfDay(initialRange.start));
@@ -93,6 +95,26 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
   const [chosen, setChosen] = useState<PlaceResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialPlaceId) return;
+    let active = true;
+    loadGoogleLibrary("places")
+      .then(async ({ Place }) => {
+        const place = new Place({ id: initialPlaceId });
+        await place.fetchFields({ fields: PLACE_FIELDS });
+        const result = toResult(place, "Selected place");
+        if (!active || !result) return;
+        setQuery(result.name);
+        setResults([result]);
+        setChosen(result);
+      })
+      .catch((err) => {
+        console.error("Loading clicked place failed", err);
+        if (active) setError("Couldn't load this place.");
+      });
+    return () => { active = false; };
+  }, [initialPlaceId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
