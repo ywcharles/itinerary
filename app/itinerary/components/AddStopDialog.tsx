@@ -277,7 +277,7 @@ export default function AddStopDialog({
                 ? "Search a different place or paste a Google Maps link…"
                 : `Search a place for ${tripName} or paste a Google Maps link…`
             }
-            className="flex-1 rounded-lg border px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm"
           />
           <button
             type="submit"
@@ -318,18 +318,18 @@ export default function AddStopDialog({
         {multiDay ? (
           <p className="text-sm text-muted">This activity spans several days, so its times can&apos;t be changed here.</p>
         ) : (
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          <label className="flex flex-col gap-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+          <label className="col-span-2 sm:col-span-1 min-w-0 flex flex-col gap-1">
             Date
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-lg border px-2 py-1.5" />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="min-w-0 w-full rounded-lg border px-2 py-1.5" />
           </label>
           <label className="flex flex-col gap-1">
             Start
-            <input type="time" step={900} value={start} onChange={(e) => setStart(e.target.value)} className="rounded-lg border px-2 py-1.5" />
+            <input type="time" step={900} value={start} onChange={(e) => setStart(e.target.value)} className="min-w-0 w-full rounded-lg border px-2 py-1.5" />
           </label>
           <label className="flex flex-col gap-1">
             End
-            <input type="time" step={900} value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border px-2 py-1.5" />
+            <input type="time" step={900} value={end} onChange={(e) => setEnd(e.target.value)} className="min-w-0 w-full rounded-lg border px-2 py-1.5" />
           </label>
         </div>
         )}

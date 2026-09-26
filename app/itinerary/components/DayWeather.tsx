@@ -29,7 +29,7 @@ export default function DayWeather({ day, location }: { day: string; location?: 
       <WeatherIcon condition={available ? forecast.description : ""} />
       <span aria-live="polite">{label}</span>
     </summary>
-    <div className="absolute right-0 top-full z-30 mt-2 w-64 rounded-xl border border-line bg-surface p-3 shadow-lg">
+    <div className="absolute left-0 sm:left-auto sm:right-0 top-full z-30 mt-2 w-64 rounded-xl border border-line bg-surface p-3 shadow-lg">
       <p className="font-medium">Weather · {day}</p>
       <p className="mt-1 text-muted">{location ? `Near ${location.name}` : "Add a location to an activity to see the local forecast."}</p>
       <div className="mt-2" aria-live="polite">

@@ -71,6 +71,13 @@ body {
 
 /* Phones: 16px text in form fields, otherwise iOS Safari zooms in when one is focused. */
 @media (max-width: 767px) {
+  /* Comfortable 44px touch targets in the trip bar. */
+  .trip-header a,
+  .trip-header button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
   input,
   textarea,
   select {

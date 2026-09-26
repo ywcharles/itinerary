@@ -19,7 +19,7 @@ type Props = {
 // One compact bar for trip pages: app, trip name, dates and actions.
 export default function TripBar({ tripName, firstDay, lastDay, onReview, canReview }: Props) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-surface px-3 md:gap-3 md:px-4">
+    <header className="trip-header flex h-12 shrink-0 items-center gap-2 border-b border-line bg-surface px-3 max-md:h-14 md:gap-3 md:px-4">
       <Link href="/" aria-label="Home" className="shrink-0 rounded focus-visible:outline-2 focus-visible:outline-primary">
         {/* Phones: just the icon, so the trip name has room. */}
         <span className="md:hidden"><LogoMark /></span>

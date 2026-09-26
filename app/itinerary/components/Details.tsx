@@ -311,8 +311,8 @@ const Details = ({ stop, onDescriptionChange, onDelete, onEdit, deleting, delete
     <div className="flex h-full w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
       <div className="min-w-0 flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         <div>
-          <div className="flex items-start justify-between gap-2">
-            <h2 className="text-lg font-semibold leading-tight tracking-tight">{place?.name ?? stop.name}</h2>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h2 className="min-w-0 break-words text-lg font-semibold leading-tight tracking-tight">{place?.name ?? stop.name}</h2>
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
