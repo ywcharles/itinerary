@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/", label: "Create Itinerary" },
-  { href: "/itinerary", label: "Itinerary" },
+  { href: "/itinerary", label: "Create Itinerary" },
 ];
 
 export default function Navbar() {
@@ -31,15 +30,11 @@ export default function Navbar() {
               (href !== "/" && pathname.startsWith(`${href}/`));
 
             return (
-              <li key={href}>
+              <li key={label}>
                 <Link
                   href={href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary ${
-                    isActive
-                      ? "bg-primary text-white"
-                      : "text-white/75 hover:bg-white/10 hover:text-white"
-                  }`}
+                  className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
                 >
                   {label}
                 </Link>
