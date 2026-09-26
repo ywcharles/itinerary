@@ -15,9 +15,10 @@ type Props = {
   onCreateRange: (range: TimeRange) => void;
   onTimeChange: (id: string, range: TimeRange) => void;
   onEdit: (id: string) => void;
+  onSuggest: (fromId: string, toId: string, freeMinutes: number) => void;
 };
 
-export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange, onTimeChange, onEdit }: Props) {
+export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
 
   // Open on daytime: 7 AM, or an hour before the day's first activity if that's earlier.
@@ -59,6 +60,7 @@ export default function Calendar({ day, stops, loading, error, selectedId, onSel
         onCreateRange={onCreateRange}
         onTimeChange={onTimeChange}
         onEdit={onEdit}
+        onSuggest={onSuggest}
       />
     </div>
   );

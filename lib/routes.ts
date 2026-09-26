@@ -36,7 +36,7 @@ async function computeLeg(from: LatLng, to: LatLng, mode: Leg["mode"]): Promise<
   };
 }
 
-function metersBetween(a: LatLng, b: LatLng) {
+export function metersBetween(a: LatLng, b: LatLng) {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);

@@ -5,6 +5,7 @@ import { loadGoogleLibrary } from "@/lib/googleMaps";
 import type { Stop } from "../types";
 import { coordinatesOf, placeIdOf } from "../stopUtils";
 import { hoursForWeekday, Period, placeLocal, visitStatus } from "@/lib/openingHours";
+import { PRICE_LEVELS } from "@/lib/suggestions";
 import { formatDay, dayKey } from "./Calendar/calendarUtils";
 
 type PlaceInfo = {
@@ -28,13 +29,6 @@ type PlaceInfo = {
   businessStatus: string | null;
 };
 
-const PRICE_LEVELS: Record<string, string> = {
-  FREE: "Free",
-  INEXPENSIVE: "$",
-  MODERATE: "$$",
-  EXPENSIVE: "$$$",
-  VERY_EXPENSIVE: "$$$$",
-};
 
 // Places lookups cost money, so each stop is only looked up once per session.
 const placeCache = new Map<string, Promise<PlaceInfo | null>>();

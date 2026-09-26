@@ -8,8 +8,10 @@ import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
 import TripBar from "./components/TripBar";
+import Suggestions from "./components/Suggestions";
+import type { Gap, Suggestion } from "@/lib/suggestions";
 import { useStops } from "./hooks/useStops";
-import { byStartTime, coordinatesOf, placeIdOf } from "./stopUtils";
+import { byStartTime, coordinatesOf, mapsUrlForPlace, placeIdOf } from "./stopUtils";
 
 type Props = {
   itineraryId: string;
@@ -53,6 +55,35 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     () => sortedStops.filter((stop) => stopDays.get(stop.id)?.includes(day)),
     [sortedStops, stopDays, day],
   );
+  // "Ideas for this gap": the two activities around the gap, while the ideas panel is open.
+  const [ideasFor, setIdeasFor] = useState<{ fromId: string; toId: string; freeMinutes: number } | null>(null);
+  const ideasGap = useMemo<Gap | null>(() => {
+    if (!ideasFor) return null;
+    const from = dayStops.find((s) => s.id === ideasFor.fromId);
+    const to = dayStops.find((s) => s.id === ideasFor.toId);
+    const fromPos = from && coordinatesOf(from);
+    const toPos = to && coordinatesOf(to);
+    // Closes by itself when the day changes or either activity is gone.
+    if (!from || !to || !fromPos || !toPos) return null;
+    return {
+      start: from.end_time,
+      end: to.start_time,
+      from: { name: from.name, position: fromPos },
+      to: { name: to.name, position: toPos },
+    };
+  }, [ideasFor, dayStops]);
+  // Places already in the trip aren't suggested again.
+  const planned = useMemo(
+    () => new Set(sortedStops.flatMap((s) => [s.name.toLowerCase(), placeIdOf(s) ?? []].flat())),
+    [sortedStops],
+  );
+
+  // Picking an activity (calendar or map) closes the ideas panel.
+  const selectStop = useCallback((id: string) => {
+    setSelectedId(id);
+    setIdeasFor(null);
+  }, []);
+
   // The activity the user clicked, if it's on the shown day.
   const clickedStop = dayStops.find((stop) => stop.id === selectedId) ?? null;
   // Shown in detail: the clicked one, otherwise the day's first activity.
@@ -94,7 +125,8 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   // Only an activity the user actually picked, so Backspace right after opening a trip deletes nothing.
   const selectedStopId = clickedStop?.id ?? null;
   useEffect(() => {
-    if (!selectedStopId || dialogOpen) return;
+    // Not while ideas cover the details card: the user couldn't see what would be deleted.
+    if (!selectedStopId || dialogOpen || ideasGap) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       const target = e.target as HTMLElement;
@@ -104,7 +136,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedStopId, dialogOpen, deleting, deleteStop]);
+  }, [selectedStopId, dialogOpen, ideasGap, deleting, deleteStop]);
 
   // Left/right arrow keys switch to the previous/next day of the trip.
   useEffect(() => {
@@ -167,6 +199,25 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     setAddRange({ start: toTimestamp(day, start), end: toTimestamp(day, start + 60) });
   };
 
+  const addIdea = async (idea: Suggestion) => {
+    await saveStop({
+      name: idea.name,
+      start_time: idea.start,
+      end_time: idea.end,
+      description: null,
+      google_maps_url: mapsUrlForPlace(idea.name, idea.placeId),
+      latitude: idea.position.lat,
+      longitude: idea.position.lng,
+      image_url: null,
+    });
+    setIdeasFor(null);
+  };
+
+  const openIdeas = (fromId: string, toId: string, freeMinutes: number) => {
+    setSelectedId(null);
+    setIdeasFor({ fromId, toId, freeMinutes });
+  };
+
   const openAdd = (range?: TimeRange) => {
     setAddPlaceId(null);
     setAddRange(range ?? { start: toTimestamp(day, 12 * 60), end: toTimestamp(day, 13 * 60) });
@@ -193,10 +244,11 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             loading={loading}
             error={error}
             selectedId={selectedStop?.id ?? null}
-            onSelect={setSelectedId}
+            onSelect={selectStop}
             onAdd={openAdd}
             onTimeChange={changeTime}
             onEdit={openEdit}
+            onSuggest={openIdeas}
           />
         </div>
         <div className="w-1/2 h-full flex flex-col gap-4">
@@ -204,18 +256,29 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             <Maps
               stops={dayStops}
               selectedId={selectedStop?.id ?? null}
-              onSelect={setSelectedId}
+              onSelect={selectStop}
               onPlaceClick={openAddForPlace}
             />
           </div>
           <div className="flex-[2] min-h-0">
+            {ideasGap && ideasFor ? (
+              <Suggestions
+                key={`${ideasFor.fromId}->${ideasFor.toId}`}
+                gap={ideasGap}
+                freeMinutes={ideasFor.freeMinutes}
+                exclude={planned}
+                onAdd={addIdea}
+                onClose={() => setIdeasFor(null)}
+              />
+            ) : (
             <Details
-              stop={selectedStop}
-              onDescriptionChange={updateDescription}
-              onDelete={deleteStop}
-              deleting={deleting}
-              deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
-            />
+                stop={selectedStop}
+                onDescriptionChange={updateDescription}
+                onDelete={deleteStop}
+                deleting={deleting}
+                deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
+              />
+            )}
           </div>
         </div>
       </div>

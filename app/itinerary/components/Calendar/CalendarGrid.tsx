@@ -12,6 +12,7 @@ import {
 } from "./calendarUtils";
 import { useTravelLegs } from "../../hooks/useTravelLegs";
 import { formatDuration } from "@/lib/routes";
+import { MIN_FREE_MINUTES } from "@/lib/suggestions";
 import type { Stop } from "../../types";
 
 const SNAP_MINUTES = 15;
@@ -27,6 +28,8 @@ type Props = {
   onCreateRange: (range: TimeRange) => void;
   onTimeChange: (id: string, range: TimeRange) => void;
   onEdit: (id: string) => void;
+  // Opens ideas for the free time between two activities.
+  onSuggest: (fromId: string, toId: string, freeMinutes: number) => void;
 };
 
 // Minutes since midnight for a y offset inside the grid, snapped to SNAP_MINUTES.
@@ -76,7 +79,7 @@ function minutesAt(offsetY: number) {
   return Math.min(Math.max(snapped, START_HOUR * 60), END_HOUR * 60);
 }
 
-export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange, onEdit }: Props) {
+export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest }: Props) {
   const totalHours = END_HOUR - START_HOUR;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const lanes = useMemo(() => layoutLanes(stops, day), [stops, day]);
@@ -175,6 +178,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
           const shortBy = Math.ceil(leg.durationMinutes - gapMinutes);
           const tooTight = shortBy > 0;
           const verb = leg.mode === "WALKING" ? "walk" : "drive";
+          const canSuggest = gapMinutes - leg.durationMinutes >= MIN_FREE_MINUTES;
           return (
             <div
               key={`${from.id}->${to.id}`}
@@ -198,6 +202,15 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 {formatDuration(leg.durationMinutes)}
                 {tooTight && <span className="font-semibold">· {shortBy} min short</span>}
               </span>
+              {canSuggest && (
+                <button
+                  type="button"
+                  onClick={() => onSuggest(from.id, to.id, gapMinutes - leg.durationMinutes)}
+                  className="pointer-events-auto absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-dashed border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted transition-colors hover:border-primary hover:text-primary"
+                >
+                  ✨ Ideas for this gap
+                </button>
+              )}
             </div>
           );
         })}
