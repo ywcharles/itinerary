@@ -84,3 +84,15 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* Smooth in-page links on the landing page (off for people who prefer reduced motion). */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

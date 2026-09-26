@@ -27,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       // The theme script sets data-theme before React hydrates.
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className={`${header.variable} ${subheader.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col">
