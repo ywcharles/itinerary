@@ -9,7 +9,7 @@ import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
 import TripBar from "./components/TripBar";
 import { useStops } from "./hooks/useStops";
-import { byStartTime, coordinatesOf } from "./stopUtils";
+import { byStartTime, coordinatesOf, placeIdOf } from "./stopUtils";
 
 type Props = {
   itineraryId: string;
@@ -24,6 +24,10 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   const [addRange, setAddRange] = useState<TimeRange | null>(null);
   // Set when the dialog was opened by clicking a landmark on the map.
   const [addPlaceId, setAddPlaceId] = useState<string | null>(null);
+  // The activity being edited (double-click in the calendar).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingStop = stops.find((stop) => stop.id === editingId) ?? null;
+  const dialogOpen = !!addRange || !!editingStop;
 
   const sortedStops = useMemo(() => [...stops].sort(byStartTime), [stops]);
 
@@ -90,7 +94,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   // Only an activity the user actually picked, so Backspace right after opening a trip deletes nothing.
   const selectedStopId = clickedStop?.id ?? null;
   useEffect(() => {
-    if (!selectedStopId || addRange) return;
+    if (!selectedStopId || dialogOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       const target = e.target as HTMLElement;
@@ -100,11 +104,11 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedStopId, addRange, deleting, deleteStop]);
+  }, [selectedStopId, dialogOpen, deleting, deleteStop]);
 
   // Left/right arrow keys switch to the previous/next day of the trip.
   useEffect(() => {
-    if (days.length < 2 || addRange) return;
+    if (days.length < 2 || dialogOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -118,7 +122,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [days, day, addRange]);
+  }, [days, day, dialogOpen]);
 
   const changeTime = useCallback(async (id: string, range: TimeRange) => {
     try {
@@ -133,6 +137,19 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   const closeAdd = () => {
     setAddRange(null);
     setAddPlaceId(null);
+    setEditingId(null);
+  };
+
+  const openEdit = (id: string) => {
+    setSelectedId(id);
+    setEditingId(id);
+  };
+
+  const saveEdit = async (fields: Partial<StopDraft>) => {
+    if (!editingStop) return;
+    await updateStop(editingStop.id, fields);
+    if (fields.start_time) setChosenDay(dayKey(fields.start_time));
+    closeAdd();
   };
 
   // A landmark clicked on the map goes into the next free hour after the day's last activity.
@@ -179,6 +196,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             onSelect={setSelectedId}
             onAdd={openAdd}
             onTimeChange={changeTime}
+            onEdit={openEdit}
           />
         </div>
         <div className="w-1/2 h-full flex flex-col gap-4">
@@ -202,7 +220,21 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
         </div>
       </div>
 
-      {addRange && (
+      {editingStop && (
+        <AddStopDialog
+          key={editingStop.id}
+          tripName={tripName}
+          searchCenter={searchCenter}
+          initialRange={{ start: editingStop.start_time, end: editingStop.end_time }}
+          initialPlaceId={placeIdOf(editingStop)}
+          editing={editingStop}
+          onAdd={saveStop}
+          onUpdate={saveEdit}
+          onClose={closeAdd}
+        />
+      )}
+
+      {addRange && !editingStop && (
         <AddStopDialog
           tripName={tripName}
           searchCenter={searchCenter}

@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
-import type { NewStop } from "../types";
+import type { NewStop, Stop } from "../types";
 import { TimeRange } from "./Calendar/CalendarGrid";
-import { dayKey, timeOfDay, toTimestamp } from "./Calendar/calendarUtils";
-import { LatLng, mapsUrlForPlace } from "../stopUtils";
+import { dayKey, endDayKey, timeOfDay, toTimestamp } from "./Calendar/calendarUtils";
+import { coordinatesOf, LatLng, mapsUrlForPlace, placeIdOf } from "../stopUtils";
 import { asMapsUrl, isShortMapsLink, parseMapsUrl } from "@/lib/mapsLink";
 
 export type StopDraft = Omit<NewStop, "itinerary_id" | "stop_order">;
@@ -81,18 +81,45 @@ type Props = {
   // Preselects this Google place (e.g. a landmark clicked on the map).
   initialPlaceId?: string | null;
   onAdd: (stop: StopDraft) => Promise<unknown>;
+  // Edit mode: the activity being edited, and how to save the changed fields.
+  editing?: Stop | null;
+  onUpdate?: (fields: Partial<StopDraft>) => Promise<unknown>;
   onClose: () => void;
 };
 
-export default function AddStopDialog({ tripName, searchCenter, initialRange, initialPlaceId, onAdd, onClose }: Props) {
-  const [query, setQuery] = useState("");
+/** The activity's current place as a preselected result (edit mode). */
+function currentPlace(stop: Stop): PlaceResult | null {
+  const coordinates = coordinatesOf(stop);
+  return coordinates
+    ? { id: placeIdOf(stop), name: stop.name, address: "Current place", coordinates, mapsUrl: stop.google_maps_url ?? undefined }
+    : null;
+}
+
+export default function AddStopDialog({
+  tripName,
+  searchCenter,
+  initialRange,
+  initialPlaceId,
+  onAdd,
+  editing,
+  onUpdate,
+  onClose,
+}: Props) {
+  const [query, setQuery] = useState(editing?.name ?? "");
   const [date, setDate] = useState(() => dayKey(initialRange.start));
   const [start, setStart] = useState(() => timeOfDay(initialRange.start));
   const [end, setEnd] = useState(() => timeOfDay(initialRange.end));
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(editing?.description ?? "");
   const [submitting, setSubmitting] = useState(false);
-  const [results, setResults] = useState<PlaceResult[]>([]);
-  const [chosen, setChosen] = useState<PlaceResult | null>(null);
+  const [results, setResults] = useState<PlaceResult[]>(() => {
+    const current = editing && currentPlace(editing);
+    return current ? [current] : [];
+  });
+  const [chosen, setChosen] = useState<PlaceResult | null>(() => (editing && currentPlace(editing)) || null);
+  // Edit mode only changes the place when the user picks a new one.
+  const [placeChanged, setPlaceChanged] = useState(false);
+  // Activities spanning several days keep their times (one date field can't express them).
+  const multiDay = !!editing && endDayKey(editing.end_time) !== dayKey(editing.start_time);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,7 +132,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
         await place.fetchFields({ fields: PLACE_FIELDS });
         const result = toResult(place, "Selected place");
         if (!active || !result) return;
-        setQuery(result.name);
+        if (!editing) setQuery(result.name);
         setResults([result]);
         setChosen(result);
       })
@@ -114,6 +141,8 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
         if (active) setError("Couldn't load this place.");
       });
     return () => { active = false; };
+    // Only when the preselected place changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPlaceId]);
 
   useEffect(() => {
@@ -145,6 +174,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
       }
       setResults(found);
       setChosen(found[0] ?? null);
+      setPlaceChanged(true);
       if (found.length === 0) {
         setError(link ? "Couldn't find a place in this link." : "No places found. Try a different name.");
       }
@@ -160,22 +190,57 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
   const endsAtMidnight = end === "00:00";
   const invalidTime = !endsAtMidnight && end <= start;
 
+  const times = () => ({
+    // Inputs are local time; the DB stores UTC timestamps.
+    start_time: new Date(`${date}T${start}`).toISOString(),
+    end_time: endsAtMidnight ? toTimestamp(date, 24 * 60) : new Date(`${date}T${end}`).toISOString(),
+  });
+
+  const place = (result: PlaceResult) => ({
+    name: result.name,
+    google_maps_url: result.mapsUrl ?? (result.id ? mapsUrlForPlace(result.name, result.id) : null),
+    latitude: result.coordinates.lat,
+    longitude: result.coordinates.lng,
+  });
+
+  const saveEdit = async () => {
+    if (!onUpdate || (!multiDay && invalidTime)) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onUpdate({
+        ...(multiDay ? {} : times()),
+        description: description.trim() || null,
+        ...(placeChanged && chosen ? place(chosen) : {}),
+      });
+    } catch (err) {
+      console.error("Updating stop failed", err);
+      setError(err instanceof Error ? err.message : "Couldn't save the changes.");
+      setSubmitting(false);
+    }
+  };
+
+  // Edit mode: Enter saves. In the place search it only searches when a new place was typed;
+  // Shift+Enter still adds a line break in the notes.
+  const onDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (!editing || e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    const target = e.target as HTMLElement;
+    if (target.hasAttribute("data-place-search") && query.trim() && query !== editing.name) return;
+    if (target.tagName === "BUTTON") return;
+    e.preventDefault();
+    if (!submitting) saveEdit();
+  };
+
   const add = async () => {
+    if (editing) return saveEdit();
     if (!chosen || invalidTime) return;
     setSubmitting(true);
     setError(null);
     try {
       await onAdd({
-        name: chosen.name,
-        // Inputs are local time; the DB stores UTC timestamps.
-        start_time: new Date(`${date}T${start}`).toISOString(),
-        end_time: endsAtMidnight
-          ? toTimestamp(date, 24 * 60)
-          : new Date(`${date}T${end}`).toISOString(),
+        ...place(chosen),
+        ...times(),
         description: description.trim() || null,
-        google_maps_url: chosen.mapsUrl ?? (chosen.id ? mapsUrlForPlace(chosen.name, chosen.id) : null),
-        latitude: chosen.coordinates.lat,
-        longitude: chosen.coordinates.lng,
         image_url: null,
       });
     } catch (err) {
@@ -196,15 +261,21 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
         aria-labelledby="add-stop-title"
         className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl flex flex-col gap-4"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={onDialogKeyDown}
       >
-        <h2 id="add-stop-title" className="text-lg font-semibold">Add activity</h2>
+        <h2 id="add-stop-title" className="text-lg font-semibold">{editing ? "Edit activity" : "Add activity"}</h2>
 
         <form onSubmit={search} className="flex gap-2">
           <input
             autoFocus
+            data-place-search
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search a place for ${tripName} or paste a Google Maps link…`}
+            placeholder={
+              editing
+                ? "Search a different place or paste a Google Maps link…"
+                : `Search a place for ${tripName} or paste a Google Maps link…`
+            }
             className="flex-1 rounded-lg border px-3 py-2 text-sm"
           />
           <button
@@ -227,7 +298,10 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
               <li key={result.id ?? `${result.coordinates.lat},${result.coordinates.lng}`}>
                 <button
                   type="button"
-                  onClick={() => setChosen(result)}
+                  onClick={() => {
+                    setChosen(result);
+                    setPlaceChanged(true);
+                  }}
                   className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
                     chosen === result ? "border-primary bg-primary/10" : "hover:bg-canvas"
                   }`}
@@ -240,6 +314,9 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
           </ul>
         )}
 
+        {multiDay ? (
+          <p className="text-sm text-muted">This activity spans several days, so its times can&apos;t be changed here.</p>
+        ) : (
         <div className="grid grid-cols-3 gap-2 text-sm">
           <label className="flex flex-col gap-1">
             Date
@@ -254,7 +331,8 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
             <input type="time" step={900} value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border px-2 py-1.5" />
           </label>
         </div>
-        {invalidTime && <p className="text-sm text-red-600 dark:text-red-400">End time must be after start time.</p>}
+        )}
+        {!multiDay && invalidTime && <p className="text-sm text-red-600 dark:text-red-400">End time must be after start time.</p>}
 
         <label className="flex flex-col gap-1 text-sm">
           Notes for the group
@@ -274,10 +352,10 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
           <button
             type="button"
             onClick={add}
-            disabled={!chosen || invalidTime || submitting}
+            disabled={(editing ? false : !chosen) || (!multiDay && invalidTime) || submitting}
             className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {submitting ? "Adding…" : "Add to itinerary"}
+            {editing ? (submitting ? "Saving…" : "Save changes") : submitting ? "Adding…" : "Add to itinerary"}
           </button>
         </div>
       </div>

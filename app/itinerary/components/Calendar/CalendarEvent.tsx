@@ -31,6 +31,8 @@ type Props = {
   selected: boolean;
   onClick: () => void;
   onTimeChange: (start: string, end: string) => void;
+  // Double-click opens the edit dialog.
+  onEdit: () => void;
 };
 
 function minutesOfDay(date: Date) {
@@ -47,6 +49,7 @@ export default function CalendarEvent({
   selected,
   onClick,
   onTimeChange,
+  onEdit,
 }: Props) {
   const drag = useRef<{ mode: DragMode; startY: number; moved: boolean } | null>(null);
   const [preview, setPreview] = useState<{ start: Date; end: Date } | null>(null);
@@ -166,6 +169,7 @@ export default function CalendarEvent({
         }
       }}
       onPointerDown={onMoveDown}
+      onDoubleClick={onEdit}
       {...dragHandlers}
       // Classic calendar block in a pastel color; the selected one gets a blue outline.
       className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-none select-none ${

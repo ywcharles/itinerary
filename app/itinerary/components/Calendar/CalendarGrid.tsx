@@ -26,6 +26,7 @@ type Props = {
   onSelect: (id: string) => void;
   onCreateRange: (range: TimeRange) => void;
   onTimeChange: (id: string, range: TimeRange) => void;
+  onEdit: (id: string) => void;
 };
 
 // Minutes since midnight for a y offset inside the grid, snapped to SNAP_MINUTES.
@@ -75,7 +76,7 @@ function minutesAt(offsetY: number) {
   return Math.min(Math.max(snapped, START_HOUR * 60), END_HOUR * 60);
 }
 
-export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange }: Props) {
+export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange, onEdit }: Props) {
   const totalHours = END_HOUR - START_HOUR;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const lanes = useMemo(() => layoutLanes(stops, day), [stops, day]);
@@ -213,6 +214,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
             selected={stop.id === selectedId}
             onClick={() => onSelect(stop.id)}
             onTimeChange={(start, end) => onTimeChange(stop.id, { start, end })}
+            onEdit={() => onEdit(stop.id)}
           />
         ))}
 

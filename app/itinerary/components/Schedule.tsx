@@ -15,9 +15,10 @@ type Props = {
   onSelect: (id: string) => void;
   onAdd: (range?: TimeRange) => void;
   onTimeChange: (id: string, range: TimeRange) => void;
+  onEdit: (id: string) => void;
 };
 
-const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange, onEdit }: Props) => {
   // Keep the selected day's tab visible when switching days (e.g. with the arrow keys).
   const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -72,6 +73,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           onSelect={onSelect}
           onCreateRange={onAdd}
           onTimeChange={onTimeChange}
+          onEdit={onEdit}
         />
       </div>
     </div>
