@@ -237,11 +237,12 @@ type Props = {
   stop: Stop | null;
   onDescriptionChange: (id: string, description: string) => Promise<void>;
   onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
   deleting: boolean;
   deleteError: string | null;
 };
 
-const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }: Props) => {
+const Details = ({ stop, onDescriptionChange, onDelete, onEdit, deleting, deleteError }: Props) => {
   // The lookup result is tagged with the stop it belongs to, so a stale result never shows for a newly selected stop.
   const [result, setResult] = useState<{ stopId: string; place: PlaceInfo | null; failed: boolean } | null>(null);
 
@@ -312,15 +313,25 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
         <div>
           <div className="flex items-start justify-between gap-2">
             <h2 className="text-lg font-semibold leading-tight tracking-tight">{place?.name ?? stop.name}</h2>
-            <button
-              type="button"
-              onClick={() => onDelete(stop.id)}
-              disabled={deleting}
-              title="Delete activity (Backspace)"
-              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900 dark:hover:bg-red-950/50 dark:hover:text-red-300 disabled:opacity-50"
-            >
-              {deleting ? "Deleting…" : "Delete"}
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onEdit(stop.id)}
+                title="Edit activity (or double-click it in the calendar)"
+                className="rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-primary hover:text-primary"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(stop.id)}
+                disabled={deleting}
+                title="Delete activity (Backspace)"
+                className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900 dark:hover:bg-red-950/50 dark:hover:text-red-300 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
           </div>
           {deleteError && <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>}
           {(place?.category || place?.priceLevel) && (

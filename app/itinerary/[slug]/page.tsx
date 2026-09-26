@@ -5,6 +5,8 @@ import ItineraryView from "../ItineraryView";
 
 type Props = {
   params: Promise<{ slug: string }>;
+  // ?start=YYYY-MM-DD: the day a new, still empty trip opens on.
+  searchParams: Promise<{ start?: string | string[] }>;
 };
 
 // The itinerary table has no name column yet, so the trip is named after its link slug.
@@ -22,8 +24,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function Itinerary({ params }: Props) {
+export default async function Itinerary({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { start } = await searchParams;
+  const startDay = typeof start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : null;
 
   const { data: itinerary, error } = await supabase
     .from("itinerary")
@@ -35,5 +39,12 @@ export default async function Itinerary({ params }: Props) {
     notFound();
   }
 
-  return <ItineraryView itineraryId={itinerary.id} tripName={tripNameFromSlug(slug)} />;
+  return (
+    <ItineraryView
+      itineraryId={itinerary.id}
+      slug={slug}
+      tripName={tripNameFromSlug(slug)}
+      startDay={startDay}
+    />
+  );
 }

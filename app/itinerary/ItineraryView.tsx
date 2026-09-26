@@ -8,6 +8,7 @@ import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
 import TripBar from "./components/TripBar";
+import { rememberTrip } from "@/lib/recentTrips";
 import Suggestions from "./components/Suggestions";
 import type { Gap, Suggestion } from "@/lib/suggestions";
 import { useStops } from "./hooks/useStops";
@@ -15,10 +16,18 @@ import { byStartTime, coordinatesOf, mapsUrlForPlace, placeIdOf } from "./stopUt
 
 type Props = {
   itineraryId: string;
+  slug: string;
   tripName: string;
+  // Day an empty trip opens on (from ?start=), instead of today.
+  startDay: string | null;
 };
 
-export default function ItineraryView({ itineraryId, tripName }: Props) {
+export default function ItineraryView({ itineraryId, slug, tripName, startDay }: Props) {
+  // Remember this trip in the browser so it shows up under "Your trips".
+  useEffect(() => {
+    rememberTrip(slug, tripName);
+  }, [slug, tripName]);
+
   const { stops, loading, error, addStop, updateStop, removeStop, refetch } = useStops(itineraryId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // null = not chosen yet; falls back to the first day with stops (they load asynchronously).
@@ -40,8 +49,8 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   );
   const activityDays = useMemo(() => [...new Set([...stopDays.values()].flat())].sort(), [stopDays]);
 
-  // The trip spans its first to last activity (today for an empty trip).
-  const today = dayKey(new Date());
+  // The trip spans its first to last activity (the chosen start day or today for an empty trip).
+  const today = startDay ?? dayKey(new Date());
   const range = {
     start: activityDays[0] ?? today,
     end: activityDays[activityDays.length - 1] ?? today,
@@ -275,6 +284,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
                 stop={selectedStop}
                 onDescriptionChange={updateDescription}
                 onDelete={deleteStop}
+              onEdit={openEdit}
                 deleting={deleting}
                 deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
               />
