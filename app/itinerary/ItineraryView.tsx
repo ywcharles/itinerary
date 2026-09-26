@@ -264,7 +264,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     const latest = (data ?? []) as Stop[];
     if (stopFingerprint(latest) !== expected) {
       void refetch();
-      throw new Error("The itinerary changed while you were reviewing it. Review the latest day first.");
+      throw new Error("Your itinerary has changed. Get fresh suggestions first.");
     }
     return latest;
   };
@@ -310,7 +310,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length > 0} />
+      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length >= 2} />
       {/* Phones: switch between calendar and map (desktop shows both). */}
       <div className="flex gap-1 border-b border-line bg-surface p-1.5 md:hidden" role="tablist" aria-label="View">
         {(["calendar", "map"] as const).map((view) => (

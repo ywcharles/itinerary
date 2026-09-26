@@ -34,7 +34,7 @@ export default function TripBar({ tripName, firstDay, lastDay, onReview, canRevi
       </span>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <button type="button" onClick={onReview} disabled={!canReview} title={canReview ? "Review the selected day with Gemini" : "Add an activity to this day first"} aria-label="Review day" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-sm font-medium hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40 max-md:w-8 max-md:justify-center max-md:px-0">✦<span className="max-md:hidden">&nbsp;Review day</span></button>
+        <button type="button" onClick={onReview} disabled={!canReview} title={canReview ? "Get suggestions for the selected day" : "Add at least two activities to this day to get suggestions"} aria-label="Need Suggestions?" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-sm font-medium hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40 max-md:w-8 max-md:justify-center max-md:px-0">✦<span className="max-md:hidden">&nbsp;Need Suggestions?</span></button>
         <Link
           href="/itinerary"
           aria-label="New trip"

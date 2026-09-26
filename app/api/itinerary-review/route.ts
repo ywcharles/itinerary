@@ -18,9 +18,9 @@ export async function POST(request: Request) {
   let body;
   try {
     const raw = await request.text();
-    if (raw.length > 80_000) return Response.json({ error: "Review request is too large." }, { status: 413 });
+    if (raw.length > 80_000) return Response.json({ error: "Suggestion request is too large." }, { status: 413 });
     body = JSON.parse(raw);
-  } catch { return Response.json({ error: "Invalid review request." }, { status: 400 }); }
+  } catch { return Response.json({ error: "Invalid suggestion request." }, { status: 400 }); }
   try {
     if (!body || typeof body !== "object" || !uuid.test(body.itineraryId ?? "") || typeof body.snapshot !== "string" || !/^\d{4}-\d\d-\d\d$/.test(body.day ?? "") || !isIsoTime(body.dayStart) || !isIsoTime(body.dayEnd) || typeof body.timeZone !== "string" || typeof body.preferences !== "string" || body.preferences.length > 1000 || !Array.isArray(body.lockedIds) || body.lockedIds.length > 100 || !body.lockedIds.every((id: unknown) => typeof id === "string" && uuid.test(id)) || !Array.isArray(body.candidates) || body.candidates.length > 8 || !Array.isArray(body.feedback) || body.feedback.length > 20 || !body.feedback.every((f: unknown) => typeof f === "string" && f.length <= 1500)) throw new Error("invalid");
     const start = Date.parse(body.dayStart), end = Date.parse(body.dayEnd);
@@ -33,17 +33,18 @@ export async function POST(request: Request) {
   const now = Date.now();
   for (const [id, usage] of recent) if (now - usage.since > 60_000) recent.delete(id);
   const usage = recent.get(body.itineraryId);
-  if ((usage?.count ?? 0) >= 4 || recent.size > 1000) return Response.json({ error: "Please wait a minute before requesting another review." }, { status: 429 });
+  if ((usage?.count ?? 0) >= 4 || recent.size > 1000) return Response.json({ error: "Please wait a minute before requesting more suggestions." }, { status: 429 });
   recent.set(body.itineraryId, { count: (usage?.count ?? 0) + 1, since: usage?.since ?? now });
   try {
     const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
     const { data, error } = await db.from("stops").select("*").eq("itinerary_id", body.itineraryId);
     if (error) return Response.json({ error: "Couldn’t read this itinerary." }, { status: 502 });
     const all = (data ?? []) as Stop[];
-    if (!all.length) return Response.json({ error: "Add an activity before reviewing your day." }, { status: 400 });
-    if (stopFingerprint(all) !== body.snapshot) return Response.json({ error: "The itinerary changed. Review the latest version." }, { status: 409 });
+    if (!all.length) return Response.json({ error: "Add at least two activities to this day to get suggestions." }, { status: 400 });
+    if (stopFingerprint(all) !== body.snapshot) return Response.json({ error: "Your itinerary has changed. Get fresh suggestions." }, { status: 409 });
     const stops = all.filter((s) => Date.parse(s.start_time) < Date.parse(body.dayEnd) && Date.parse(s.end_time) > Date.parse(body.dayStart));
-    if (!stops.length || stops.length > 40) return Response.json({ error: "Choose a day with 1–40 activities." }, { status: 400 });
+    if (stops.length < 2) return Response.json({ error: "Add at least two activities to this day to get suggestions." }, { status: 400 });
+    if (stops.length > 40) return Response.json({ error: "Choose a day with 2–40 activities." }, { status: 400 });
     const context = { day: body.day, timeZone: body.timeZone, dayStart: body.dayStart, dayEnd: body.dayEnd, lockedIds: body.lockedIds, preferences: body.preferences, feedback: body.feedback, refine: body.refine === true, stops: stops.map(({ id, name, start_time, end_time, latitude, longitude }) => ({ id, name, start_time, end_time, latitude, longitude })), candidates: body.candidates, evidence: body.evidence };
     const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
     const signal = AbortSignal.timeout(45_000);
@@ -64,10 +65,10 @@ export async function POST(request: Request) {
       const providerError = await response.json().catch(() => null);
       const invalidKey = /API key not valid|API_KEY_INVALID/i.test(providerError?.error?.message ?? "");
       const message = invalidKey ? "The configured Gemini API key is invalid. Replace GEMINI_API_KEY in the server environment and restart the app." : response.status === 429 ? "Gemini is busy or its quota has been reached. Try again later." :
-        response.status >= 500 ? "Gemini is temporarily unavailable due to high demand. Please try reviewing your day again in a moment." :
+        response.status >= 500 ? "Gemini is temporarily unavailable due to high demand. Please try requesting suggestions again in a moment." :
         response.status === 404 ? "The configured Gemini model is unavailable. Check GEMINI_MODEL in the server environment." :
         response.status === 403 ? "Gemini denied access. Check this API key’s project permissions and API restrictions." :
-        "Gemini rejected the review request. Check the server’s Gemini configuration.";
+        "Gemini rejected the suggestion request. Check the server’s Gemini configuration.";
       // Do not log provider bodies: they may contain request data or credentials.
       console.error("Gemini review failed", { status: response.status, model });
       return Response.json({ error: message }, { status: response.status === 429 ? 429 : response.status >= 500 ? 503 : 502 });
@@ -83,8 +84,8 @@ export async function POST(request: Request) {
     return Response.json({ ...review, snapshot: body.snapshot }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-      return Response.json({ error: "Gemini took too long to respond. Please try reviewing your day again." }, { status: 504 });
+      return Response.json({ error: "Gemini took too long to respond. Please try requesting suggestions again." }, { status: 504 });
     }
-    return Response.json({ error: "The review couldn’t be completed. Your itinerary has not been changed." }, { status: 502 });
+    return Response.json({ error: "Suggestions couldn’t be generated. Your itinerary has not been changed." }, { status: 502 });
   }
 }

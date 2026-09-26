@@ -11,7 +11,8 @@ const routeCode = ts.transpileModule(routeSource, { compilerOptions: { module: t
 const trip = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const stopId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const stop = { id: stopId, itinerary_id: trip, stop_order: 1, name: 'Fictional museum', start_time: '2026-09-26T09:00:00Z', end_time: '2026-09-26T10:00:00Z', latitude: null, longitude: null, description: null, google_maps_url: null, image_url: null, created_at: '' };
-const body = { itineraryId: trip, snapshot: pure.stopFingerprint([stop]), day: '2026-09-26', dayStart: '2026-09-26T00:00:00Z', dayEnd: '2026-09-27T00:00:00Z', timeZone: 'UTC', preferences: '', lockedIds: [], candidates: [], feedback: [], evidence: {} };
+const secondStop = { ...stop, id: 'cccccccc-cccc-cccc-cccc-cccccccccccc', name: 'Fictional park', start_time: '2026-09-26T14:00:00Z', end_time: '2026-09-26T15:00:00Z' };
+const body = { itineraryId: trip, snapshot: pure.stopFingerprint([stop, secondStop]), day: '2026-09-26', dayStart: '2026-09-26T00:00:00Z', dayEnd: '2026-09-27T00:00:00Z', timeZone: 'UTC', preferences: '', lockedIds: [], candidates: [], feedback: [], evidence: {} };
 const proposal = { kind: 'reschedule', title: 'Start later', reason: 'Slower morning', stopId, candidateId: '', start: '2026-09-26T10:00:00Z', end: '2026-09-26T11:00:00Z' };
 
 function fixture(options = {}) {
@@ -20,7 +21,7 @@ function fixture(options = {}) {
   const testModule = { exports: {} };
   const require = (id) => {
     if (id === '@/lib/aiReview') return pure;
-    if (id === '@supabase/supabase-js') return { createClient: () => ({ from: () => ({ select: () => ({ eq: async () => ({ data: options.stops ?? [stop], error: null }) }) }) }) };
+    if (id === '@supabase/supabase-js') return { createClient: () => ({ from: () => ({ select: () => ({ eq: async () => ({ data: options.stops ?? [stop, secondStop], error: null }) }) }) }) };
     throw new Error('Unexpected import');
   };
   const mockFetch = async (_url, init) => {
@@ -95,5 +96,16 @@ test('quota and configuration failures are not retried', async () => {
     const f = fixture({ statuses: [status] });
     assert.match((await (await f.post()).json()).error, message);
     assert.equal(f.modelCalls(), 1);
+  }
+});
+
+test('requires two activities in the selected day before calling Gemini', async () => {
+  const tomorrow = { ...secondStop, start_time: '2026-09-27T14:00:00Z', end_time: '2026-09-27T15:00:00Z' };
+  for (const stops of [[], [stop], [stop, tomorrow], [tomorrow]]) {
+    const f = fixture({ stops });
+    const response = await f.post({ snapshot: pure.stopFingerprint(stops) });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /at least two activities/);
+    assert.equal(f.modelCalls(), 0);
   }
 });
