@@ -89,6 +89,17 @@ export function walkMinutes(a: LatLng, b: LatLng) {
   return Math.ceil((metersBetween(a, b) * 1.3) / 75);
 }
 
+// Beyond this nobody walks: plan a taxi/drive instead (same idea as the calendar's travel times).
+const MAX_WALK_LEG_MINUTES = 25;
+
+/** Time to get from a to b: walking when that's reasonable, otherwise a rough city-driving estimate. */
+function travelMinutes(a: LatLng, b: LatLng) {
+  const walk = walkMinutes(a, b);
+  if (walk <= MAX_WALK_LEG_MINUTES) return walk;
+  // ~25 km/h through city traffic on a route ~1.4x the straight line, plus a few minutes to get going.
+  return Math.ceil((metersBetween(a, b) * 1.4) / 420) + 5;
+}
+
 const roundUp = (ms: number) => Math.ceil(ms / SLOT) * SLOT;
 const roundDown = (ms: number) => Math.floor(ms / SLOT) * SLOT;
 
@@ -109,15 +120,34 @@ const FIELDS = [
 // One Places request per gap and category per session.
 const cache = new Map<string, Promise<Suggestion[]>>();
 
-/** Search area: around the midpoint, wide enough to cover both ends of the gap. */
-function searchArea(gap: Gap) {
+// Ideas must be walkable from one end of the gap, so far-apart ends are searched separately.
+const FAR_APART_METERS = 2500;
+const AROUND_END_METERS = 1500;
+
+/**
+ * Where to look: one circle around the midpoint when both activities are close together,
+ * otherwise a circle around each of them (the midpoint of far-apart stops is out of walking range of both).
+ */
+function searchAreas(gap: Gap) {
   const { from, to } = gap;
+  const distance = metersBetween(from.position, to.position);
+  if (distance > FAR_APART_METERS) {
+    return [
+      { center: from.position, radius: AROUND_END_METERS },
+      { center: to.position, radius: AROUND_END_METERS },
+    ];
+  }
   const center = {
     lat: (from.position.lat + to.position.lat) / 2,
     lng: (from.position.lng + to.position.lng) / 2,
   };
-  const radius = Math.min(3000, Math.max(1000, metersBetween(from.position, to.position) / 2 + 800));
-  return { center, radius };
+  return [{ center, radius: Math.max(1000, distance / 2 + 800) }];
+}
+
+/** Places from several searches, each place once. */
+function mergePlaces(results: { places: google.maps.places.Place[] }[]) {
+  const seen = new Set<string>();
+  return results.flatMap(({ places }) => places).filter((place) => !seen.has(place.id) && seen.add(place.id));
 }
 
 /** Places that fit the gap (open, reachable, not planned yet), best first by rating and distance. */
@@ -137,8 +167,9 @@ function rankForGap(places: google.maps.places.Place[], gap: Gap, category: Cate
     const walkIn = walkMinutes(from.position, position);
     const walkOut = walkMinutes(position, to.position);
     if (Math.min(walkIn, walkOut) > MAX_WALK_MINUTES) return [];
-    const latestEnd = roundDown(gapEnd - (gap.openEnd ? 0 : walkOut) * MINUTE);
-    const arrival = roundUp(gapStart + (gap.openStart ? 0 : walkIn) * MINUTE);
+    // The idea is walkable from one end; the other end may be a drive away.
+    const latestEnd = roundDown(gapEnd - (gap.openEnd ? 0 : travelMinutes(position, to.position)) * MINUTE);
+    const arrival = roundUp(gapStart + (gap.openStart ? 0 : travelMinutes(from.position, position)) * MINUTE);
     const atMealTime = meal ? roundUp(Math.max(arrival, meal.from)) : arrival;
     // Fall back to arriving right away if waiting for meal time leaves too little room.
     let start = latestEnd - atMealTime >= MIN_VISIT_MINUTES * MINUTE ? atMealTime : arrival;
@@ -199,13 +230,15 @@ export function fetchSuggestions(gap: Gap, category: Category, exclude: Set<stri
 
   const request = (async () => {
     const { Place } = await loadGoogleLibrary("places");
-    const { places } = await Place.searchNearby({
-      locationRestriction: searchArea(gap),
-      includedPrimaryTypes: CATEGORIES[category].types,
-      rankPreference: "POPULARITY",
-      maxResultCount: 20,
-      fields: FIELDS,
-    });
+    const places = mergePlaces(await Promise.all(searchAreas(gap).map((area) =>
+      Place.searchNearby({
+        locationRestriction: area,
+        includedPrimaryTypes: CATEGORIES[category].types,
+        rankPreference: "POPULARITY",
+        maxResultCount: 20,
+        fields: FIELDS,
+      }),
+    )));
     return rankForGap(places, gap, category, exclude).slice(0, limit);
   })();
 
@@ -254,12 +287,14 @@ export function fetchPersonalized(
 
   const request = (async (): Promise<PersonalizedIdeas> => {
     const { Place } = await loadGoogleLibrary("places");
-    const { places } = await Place.searchByText({
-      textQuery: `${wish} ${SEARCH_NOUN[category]}`,
-      locationBias: searchArea(gap),
-      maxResultCount: 20,
-      fields: FIELDS,
-    });
+    const places = mergePlaces(await Promise.all(searchAreas(gap).map((area) =>
+      Place.searchByText({
+        textQuery: `${wish} ${SEARCH_NOUN[category]}`,
+        locationBias: area,
+        maxResultCount: 20,
+        fields: FIELDS,
+      }),
+    )));
     const candidates = rankForGap(places, gap, category, exclude).slice(0, 8);
     if (candidates.length === 0) return { ideas: [], note: null, ranked: true };
 
