@@ -15,22 +15,13 @@ function slugify(name: string) {
     .slice(0, 48);
 }
 
-function firstOfNextMonth() {
-  const now = new Date();
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
-}
-
 const input =
   "rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
-// Name (and optional start date) -> new trip -> straight into the planner.
+// Name -> new trip -> straight into the planner.
 export default function CreateTripForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  // Prefilled with the 1st of next month, a typical "next trip" date; can be changed or cleared.
-  const [start, setStart] = useState(firstOfNextMonth);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +47,7 @@ export default function CreateTripForm({ autoFocus = false }: { autoFocus?: bool
       return;
     }
     rememberTrip(slug, name.trim());
-    // The start date only decides which day the empty planner opens on.
-    router.push(`/itinerary/${slug}${start ? `?start=${start}` : ""}`);
+    router.push(`/itinerary/${slug}`);
   };
 
   return (
@@ -69,15 +59,8 @@ export default function CreateTripForm({ autoFocus = false }: { autoFocus?: bool
           onChange={(e) => setName(e.target.value)}
           placeholder="Trip name, e.g. Toronto weekend"
           aria-label="Trip name"
+          required
           className={`${input} min-w-0 flex-1`}
-        />
-        <input
-          type="date"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          aria-label="First day (optional)"
-          title="First day (optional)"
-          className={`${input} sm:w-40`}
         />
         <button
           type="submit"
