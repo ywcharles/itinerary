@@ -3,12 +3,14 @@ import Calendar from "./Calendar/Calendar";
 import { TimeRange } from "./Calendar/CalendarGrid";
 import { formatDay } from "./Calendar/calendarUtils";
 import type { Stop } from "../types";
+import DayWeather from "./DayWeather";
 
 type Props = {
   days: string[];
   day: string;
   onDayChange: (day: string) => void;
   stops: Stop[];
+  aiPreview?: Stop | null;
   loading: boolean;
   error: string | null;
   selectedId: string | null;
@@ -19,7 +21,8 @@ type Props = {
   onSuggest: (fromId: string, toId: string, freeMinutes: number) => void;
 };
 
-const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange, onEdit, onSuggest }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange, onEdit, onSuggest, aiPreview }: Props) => {
+  const weatherLocation = stops.find((s) => s.latitude != null && s.longitude != null);
   // Keep the selected day's tab visible when switching days (e.g. with the arrow keys).
   const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -30,12 +33,14 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
 
   return (
     <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col p-4 gap-3">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">
           <span className="md:hidden">{formatDay(day, "short")}</span>
           <span className="max-md:hidden">{formatDay(day)}</span>
         </h2>
-        {/* Phones use the floating "+" button instead. */}
+        <div className="ml-auto flex items-center gap-2">
+          {!loading && stops.length > 0 && <DayWeather day={day} location={weatherLocation} />}
+          {/* Phones use the floating "+" button instead. */}
         <button
           type="button"
           onClick={() => onAdd()}
@@ -43,6 +48,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
         >
           + Add activity
         </button>
+        </div>
       </div>
 
       {days.length > 1 && (
@@ -66,8 +72,6 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           ))}
         </div>
       )}
-
-
       <div className="w-full flex-1 min-h-0">
         <Calendar
           day={day}
@@ -80,6 +84,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           onTimeChange={onTimeChange}
           onEdit={onEdit}
           onSuggest={onSuggest}
+          aiPreview={aiPreview}
         />
       </div>
     </div>

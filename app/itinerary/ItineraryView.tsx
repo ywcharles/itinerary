@@ -10,6 +10,11 @@ import Schedule from "./components/Schedule";
 import TripBar from "./components/TripBar";
 import { rememberTrip } from "@/lib/recentTrips";
 import Suggestions from "./components/Suggestions";
+import ReviewPanel from "./components/ReviewPanel";
+import { supabase } from "@/lib/supabase";
+import { stopFingerprint, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "@/lib/aiReview";
+import { checkProposedVisit } from "@/lib/reviewContext";
+import type { Stop } from "./types";
 import type { Gap, Suggestion } from "@/lib/suggestions";
 import { useStops } from "./hooks/useStops";
 import { byStartTime, coordinatesOf, mapsUrlForPlace, placeIdOf } from "./stopUtils";
@@ -30,6 +35,9 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
 
   const { stops, loading, error, addStop, updateStop, removeStop, refetch } = useStops(itineraryId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [aiPreview, setAiPreview] = useState<Stop | null>(null);
+  const [undoChange, setUndoChange] = useState<{ before: Stop | null; after: Stop; snapshot: string } | null>(null);
   // null = not chosen yet; falls back to the first day with stops (they load asynchronously).
   const [chosenDay, setChosenDay] = useState<string | null>(null);
   const [addRange, setAddRange] = useState<TimeRange | null>(null);
@@ -119,7 +127,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
   }, [sortedStops]);
 
   const updateDescription = useCallback(
-    (id: string, description: string) => updateStop(id, { description: description || null }),
+    async (id: string, description: string) => { await updateStop(id, { description: description || null }); },
     [updateStop],
   );
 
@@ -145,7 +153,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
   const selectedStopId = clickedStop?.id ?? null;
   useEffect(() => {
     // Not while ideas cover the details card: the user couldn't see what would be deleted.
-    if (!selectedStopId || dialogOpen || ideasGap) return;
+    if (!selectedStopId || dialogOpen || ideasGap || reviewOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       const target = e.target as HTMLElement;
@@ -155,11 +163,11 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedStopId, dialogOpen, ideasGap, deleting, deleteStop]);
+  }, [selectedStopId, dialogOpen, ideasGap, reviewOpen, deleting, deleteStop]);
 
   // Left/right arrow keys switch to the previous/next day of the trip.
   useEffect(() => {
-    if (days.length < 2 || dialogOpen) return;
+    if (days.length < 2 || dialogOpen || reviewOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -173,7 +181,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [days, day, dialogOpen]);
+  }, [days, day, dialogOpen, reviewOpen]);
 
   const changeTime = useCallback(async (id: string, range: TimeRange) => {
     try {
@@ -250,9 +258,59 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     closeAdd();
   };
 
+  const freshStops = async (expected: string) => {
+    const { data, error } = await supabase.from("stops").select("*").eq("itinerary_id", itineraryId);
+    if (error) throw new Error("Couldn’t check the latest itinerary. Please try again.");
+    const latest = (data ?? []) as Stop[];
+    if (stopFingerprint(latest) !== expected) {
+      void refetch();
+      throw new Error("The itinerary changed while you were reviewing it. Review the latest day first.");
+    }
+    return latest;
+  };
+
+  const previewChange = (proposal: ReviewProposal | null, candidates: ReviewCandidate[]) => {
+    if (!proposal) { setAiPreview(null); return; }
+    const existing = stops.find((s) => s.id === proposal.stopId);
+    const place = candidates.find((c) => c.id === proposal.candidateId);
+    setAiPreview({ ...(existing ?? { id: "ai-preview", itinerary_id: itineraryId, stop_order: 0, name: place!.name, latitude: place!.latitude, longitude: place!.longitude, description: null, google_maps_url: mapsUrlForPlace(place!.name, place!.id), image_url: null, created_at: "" }), start_time: proposal.start, end_time: proposal.end });
+  };
+
+  const applyChange = async (proposal: ReviewProposal, candidates: ReviewCandidate[], bounds: ReviewBounds, snapshot: string) => {
+    const current = await freshStops(snapshot);
+    await checkProposedVisit(proposal, current, candidates, bounds);
+    // Recheck after potentially slow place/route lookups, then compare target fields in the write.
+    await freshStops(snapshot);
+    let before: Stop | null = null;
+    let saved: Stop;
+    if (proposal.kind === "reschedule") {
+      before = current.find((s) => s.id === proposal.stopId)!;
+      saved = await updateStop(before.id, { start_time: proposal.start, end_time: proposal.end }, before);
+    } else {
+      const place = candidates.find((c) => c.id === proposal.candidateId)!;
+      saved = await addStop({ itinerary_id: itineraryId, stop_order: Math.max(0, ...current.map((s) => s.stop_order)) + 1, name: place.name, start_time: proposal.start, end_time: proposal.end, latitude: place.latitude, longitude: place.longitude, description: null, google_maps_url: mapsUrlForPlace(place.name, place.id), image_url: null });
+    }
+    const after = before ? current.map((s) => s.id === saved.id ? saved : s) : [...current, saved];
+    setUndoChange({ before, after: saved, snapshot: stopFingerprint(after) });
+    setSelectedId(saved.id);
+    setAiPreview(null);
+    return { saved, snapshot: stopFingerprint(after) };
+  };
+
+  const undoAiChange = async () => {
+    if (!undoChange) return;
+    await freshStops(undoChange.snapshot);
+    if (undoChange.before) {
+      await updateStop(undoChange.after.id, { start_time: undoChange.before.start_time, end_time: undoChange.before.end_time }, undoChange.after);
+    } else {
+      await removeStop(undoChange.after.id, undoChange.after);
+    }
+    setUndoChange(null); setAiPreview(null);
+  };
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} />
+      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length > 0} />
       {/* Phones: switch between calendar and map (desktop shows both). */}
       <div className="flex gap-1 border-b border-line bg-surface p-1.5 md:hidden" role="tablist" aria-label="View">
         {(["calendar", "map"] as const).map((view) => (
@@ -286,6 +344,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
             onTimeChange={changeTime}
             onEdit={openEdit}
             onSuggest={openIdeas}
+            aiPreview={aiPreview}
           />
         </div>
         <div className="max-md:contents md:flex md:h-full md:w-1/2 md:flex-col md:gap-4">
@@ -351,6 +410,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
           +
         </button>
       )}
+      {reviewOpen && <ReviewPanel key={day} itineraryId={itineraryId} day={day} stops={dayStops} allStops={stops} onClose={() => { setReviewOpen(false); setAiPreview(null); }} onPreview={previewChange} onApply={applyChange} onUndo={undoAiChange} canUndo={!!undoChange} />}
 
       {editingStop && (
         <AddStopDialog

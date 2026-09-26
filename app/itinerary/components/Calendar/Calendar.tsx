@@ -8,6 +8,7 @@ import type { Stop } from "../../types";
 type Props = {
   day: string;
   stops: Stop[];
+  aiPreview?: Stop | null;
   loading: boolean;
   error: string | null;
   selectedId: string | null;
@@ -18,8 +19,13 @@ type Props = {
   onSuggest: (fromId: string, toId: string, freeMinutes: number) => void;
 };
 
-export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest }: Props) {
+export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest, aiPreview }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aiPreview || !scroller.current) return;
+    const date = new Date(aiPreview.start_time);
+    scroller.current.scrollTop = Math.max(0, (date.getHours() + date.getMinutes() / 60 - 1) * HOUR_HEIGHT);
+  }, [aiPreview]);
 
   // Open on daytime: 7 AM, or an hour before the day's first activity if that's earlier.
   // Only when the day changes or the stops finish loading, so dragging/editing never jumps.
@@ -61,6 +67,7 @@ export default function Calendar({ day, stops, loading, error, selectedId, onSel
         onTimeChange={onTimeChange}
         onEdit={onEdit}
         onSuggest={onSuggest}
+        aiPreview={aiPreview}
       />
     </div>
   );

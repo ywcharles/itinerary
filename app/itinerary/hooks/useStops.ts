@@ -32,7 +32,7 @@ export function useStops(itineraryId: string) {
   useEffect(() => {
     if (!itineraryId) return;
 
-    fetchStops();
+    void Promise.resolve().then(fetchStops);
 
     const channel = supabase
       .channel(`stops-${itineraryId}`)
@@ -99,25 +99,36 @@ export function useStops(itineraryId: string) {
   }, []);
 
   const updateStop = useCallback(
-    async (id: string, patch: Partial<NewStop>) => {
-      // Optimistic update; the realtime UPDATE event brings the same row back.
-      setStops((current) =>
-        current.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-      );
-
-      const { error } = await supabase.from("stops").update(patch).eq("id", id);
-      if (error) throw error;
+    async (id: string, patch: Partial<NewStop>, expected?: Stop) => {
+      let query = supabase.from("stops").update(patch).eq("id", id).eq("itinerary_id", itineraryId);
+      if (expected) {
+        query = query.eq("start_time", expected.start_time).eq("end_time", expected.end_time).eq("name", expected.name);
+        for (const field of ["description", "latitude", "longitude", "google_maps_url"] as const) {
+          query = expected[field] === null ? query.is(field, null) : query.eq(field, expected[field]);
+        }
+      }
+      const { data, error } = await query.select().single();
+      if (error || !data) throw new Error("The activity changed or could not be saved. Refresh the itinerary and try again.");
+      setStops((current) => current.map((s) => s.id === id ? data as Stop : s));
+      return data as Stop;
     },
-    [],
+    [itineraryId],
   );
 
   const removeStop = useCallback(
-    async (id: string) => {
-      const { data, error } = await supabase
+    async (id: string, expected?: Stop) => {
+      let query = supabase
         .from("stops")
         .delete()
         .eq("id", id)
-        .select("id");
+        .eq("itinerary_id", itineraryId);
+      if (expected) {
+        query = query.eq("start_time", expected.start_time).eq("end_time", expected.end_time).eq("name", expected.name);
+        for (const field of ["description", "latitude", "longitude", "google_maps_url"] as const) {
+          query = expected[field] === null ? query.is(field, null) : query.eq(field, expected[field]);
+        }
+      }
+      const { data, error } = await query.select("id");
       if (error) throw error;
       // Row-level security silently deletes nothing when deleting isn't allowed.
       if (!data?.length) {
@@ -127,7 +138,7 @@ export function useStops(itineraryId: string) {
       // The realtime DELETE event removes it for everyone else.
       setStops((current) => current.filter((s) => s.id !== id));
     },
-    [],
+    [itineraryId],
   );
 
   return { stops, loading, error, addStop, updateStop, removeStop, refetch: fetchStops };
