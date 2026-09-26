@@ -17,6 +17,8 @@ type Props = {
   onSelect: (id: string) => void;
   // Called with the Google place id when a landmark on the map is clicked.
   onPlaceClick: (placeId: string) => void;
+  // Phones hide the map behind a Calendar/Map switch; it re-fits the stops when shown again.
+  visible?: boolean;
 };
 
 type Located = { stop: Stop; number: number; position: LatLng };
@@ -24,7 +26,7 @@ type Located = { stop: Stop; number: number; position: LatLng };
 // World view until the itinerary has located stops.
 const WORLD = { center: { lat: 20, lng: 0 }, zoom: 2 };
 
-export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Props) {
+export default function Maps({ stops, selectedId, onSelect, onPlaceClick, visible = true }: Props) {
   // Numbers follow the calendar order; stops without coordinates keep their number but get no pin.
   // Keyed on the fields the map uses, so editing a stop's notes doesn't redraw routes and pins.
   const mapKey = stops
@@ -55,6 +57,8 @@ export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Prop
           mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID,
           streetViewControl: false,
           colorScheme: theme === "dark" ? "DARK" : "LIGHT",
+          // Phones: pan with one finger (the map fills the screen there, so page scrolling isn't needed).
+          gestureHandling: window.matchMedia("(max-width: 767px)").matches ? "greedy" : "auto",
         }));
       }
     });
@@ -90,7 +94,8 @@ export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Prop
       located.forEach(({ position }) => bounds.extend(position));
       map.fitBounds(bounds, 48);
     }
-  }, [map, located]);
+    // Also when a hidden map (phone view switch) becomes visible and has its real size again.
+  }, [map, located, visible]);
 
   // Routes between consecutive stops (1 -> 2 -> 3 ...) with a travel time label on each leg.
   useEffect(() => {

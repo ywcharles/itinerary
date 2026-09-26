@@ -141,7 +141,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 className="absolute left-14 right-0 border-t border-line"
                 style={{ top: `${index * HOUR_HEIGHT}px` }}
               >
-                <div className="absolute right-full -top-2 w-14 pr-2 text-right text-[11px] leading-4 text-muted">
+                <div className="absolute right-full -top-2 w-14 pr-2 text-right text-[12px] leading-4 text-muted">
                   {index > 0 && index < totalHours ? formatHour(hour) : ""}
                 </div>
               </div>
@@ -158,7 +158,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
       {/* Events; drag on empty space to create a new one */}
       <div
-        className="absolute left-16 right-0 top-0 bottom-0 cursor-crosshair touch-none select-none"
+        className="absolute left-16 right-0 top-0 bottom-0 cursor-crosshair touch-pan-y select-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -194,7 +194,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 // Always on the right, where it never covers a title; centered in the gap
                 // (for back-to-back activities it sits on the boundary).
                 // Plain text in the gap; when there's no room it needs a white backing to sit on the blocks.
-                className={`pointer-events-auto absolute right-1 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap text-[11px] leading-4 ${
+                className={`pointer-events-auto absolute right-1 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap text-[12px] leading-4 ${
                   gap < 16 ? "rounded-sm bg-surface px-1 ring-1 ring-line" : ""
                 } ${tooTight ? "font-medium text-red-600 dark:text-red-400" : "text-muted"}`}
               >
@@ -206,7 +206,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 <button
                   type="button"
                   onClick={() => onSuggest(from.id, to.id, gapMinutes - leg.durationMinutes)}
-                  className="pointer-events-auto absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-dashed border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted transition-colors hover:border-primary hover:text-primary"
+                  className="pointer-events-auto absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-dashed border-line bg-surface px-2 py-0.5 text-[12px] font-medium text-muted transition-colors hover:border-primary hover:text-primary"
                 >
                   ✨ Ideas for this gap
                 </button>
@@ -233,7 +233,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
         {preview && preview.height > 0 && (
           <div
-            className="pointer-events-none absolute left-0.5 right-2 rounded-[4px] border border-dashed border-primary bg-primary/10 px-1.5 py-1 text-[11px] text-primary"
+            className="pointer-events-none absolute left-0.5 right-2 rounded-[4px] border border-dashed border-primary bg-primary/10 px-1.5 py-1 text-[12px] text-primary"
             style={{ top: `${preview.top}px`, height: `${preview.height}px` }}
           >
             {formatTime(new Date(toTimestamp(day, Math.min(drag.from, drag.to))))} –{" "}

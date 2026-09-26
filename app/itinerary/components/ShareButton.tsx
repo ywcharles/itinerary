@@ -20,7 +20,8 @@ export default function ShareButton() {
     <button
       type="button"
       onClick={copy}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium transition-colors hover:bg-canvas"
+      aria-label={copied ? "Link copied" : "Copy link"}
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium transition-colors hover:bg-canvas max-md:w-8 max-md:justify-center max-md:px-0"
     >
       <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         {copied ? (
@@ -32,7 +33,8 @@ export default function ShareButton() {
           </>
         )}
       </svg>
-      {copied ? "Link copied" : "Copy link"}
+      {/* Phones: icon only. */}
+      <span className="max-md:hidden">{copied ? "Link copied" : "Copy link"}</span>
     </button>
   );
 }

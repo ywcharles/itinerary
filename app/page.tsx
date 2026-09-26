@@ -39,7 +39,7 @@ function PlannerPreview() {
           {stops.map((s) => (
             <div
               key={s.name}
-              className="absolute left-1.5 right-0 rounded px-1.5 py-1 text-[10px] leading-tight"
+              className="absolute left-1.5 right-0 rounded px-1.5 py-1 text-[11px] leading-tight"
               style={{ top: s.top, height: s.height, backgroundColor: `var(--pastel-${s.color}-bg)`, color: `var(--pastel-${s.color}-text)` }}
             >
               <span className="font-semibold">{s.name}</span>

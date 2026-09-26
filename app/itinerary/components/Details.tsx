@@ -300,7 +300,7 @@ const Details = ({ stop, onDescriptionChange, onDelete, onEdit, deleting, delete
         </div>
       )}
       {place?.photoAttribution && (
-        <span className="absolute bottom-1.5 right-2 max-w-[90%] truncate text-[10px] text-white drop-shadow">
+        <span className="absolute bottom-1.5 right-2 max-w-[90%] truncate text-[11px] text-white drop-shadow">
           Photo: {place.photoAttribution}
         </span>
       )}

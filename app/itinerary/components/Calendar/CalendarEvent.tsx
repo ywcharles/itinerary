@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   getEventPosition,
   formatTime,
@@ -14,6 +14,9 @@ const SNAP_MINUTES = 15;
 const MIN_DURATION_MINUTES = 15;
 // Pointer movement below this is a click, not a drag.
 const DRAG_THRESHOLD_PX = 4;
+// Touch: hold this long before an activity can be dragged; moving earlier scrolls instead.
+const LONG_PRESS_MS = 400;
+const TOUCH_SLOP_PX = 8;
 
 const MINUTE_MS = 60_000;
 
@@ -51,7 +54,27 @@ export default function CalendarEvent({
   onTimeChange,
   onEdit,
 }: Props) {
-  const drag = useRef<{ mode: DragMode; startY: number; moved: boolean } | null>(null);
+  // `armed` is false for a touch until the long press completes (mouse drags are armed right away).
+  const drag = useRef<{ mode: DragMode; startY: number; moved: boolean; armed: boolean } | null>(null);
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lifted, setLifted] = useState(false);
+  const blockRef = useRef<HTMLDivElement>(null);
+
+  // While a touch drag is armed, stop the page from scrolling under the finger.
+  useEffect(() => {
+    const el = blockRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (drag.current?.armed) e.preventDefault();
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
+
+  const clearLongPress = () => {
+    if (longPress.current) clearTimeout(longPress.current);
+    longPress.current = null;
+  };
   const [preview, setPreview] = useState<{ start: Date; end: Date } | null>(null);
 
   const originalStart = new Date(start);
@@ -115,8 +138,27 @@ export default function CalendarEvent({
     }
     // Keep the grid from starting a "create" drag, and the edge handles from also starting a move.
     e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { mode, startY: e.clientY, moved: false };
+    const touch = e.pointerType === "touch";
+    drag.current = { mode, startY: e.clientY, moved: false, armed: !touch };
+    if (!touch) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
+    // Touch: a long press picks the activity up; until then the finger can still scroll.
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
+    clearLongPress();
+    longPress.current = setTimeout(() => {
+      if (!drag.current) return;
+      drag.current.armed = true;
+      setLifted(true);
+      try {
+        target.setPointerCapture(pointerId);
+      } catch {
+        // The pointer may already be gone.
+      }
+      navigator.vibrate?.(15);
+    }, LONG_PRESS_MS);
   };
 
   const onMoveDown = (e: React.PointerEvent<HTMLElement>) => beginDrag("move", e);
@@ -127,6 +169,14 @@ export default function CalendarEvent({
     const current = drag.current;
     if (!current) return;
     const dy = e.clientY - current.startY;
+    if (!current.armed) {
+      // Moved before the long press finished: it's a scroll, not a drag.
+      if (Math.abs(dy) > TOUCH_SLOP_PX) {
+        clearLongPress();
+        drag.current = null;
+      }
+      return;
+    }
     if (!current.moved && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
     current.moved = true;
     const deltaMinutes = Math.round((dy / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
@@ -136,6 +186,8 @@ export default function CalendarEvent({
   const handlePointerUp = () => {
     const current = drag.current;
     drag.current = null;
+    clearLongPress();
+    setLifted(false);
     if (!current) return;
     if (!current.moved) {
       onClick();
@@ -153,6 +205,8 @@ export default function CalendarEvent({
     onPointerUp: handlePointerUp,
     onPointerCancel: () => {
       drag.current = null;
+      clearLongPress();
+      setLifted(false);
       setPreview(null);
     },
   };
@@ -168,11 +222,12 @@ export default function CalendarEvent({
           onClick();
         }
       }}
+      ref={blockRef}
       onPointerDown={onMoveDown}
       onDoubleClick={onEdit}
       {...dragHandlers}
       // Classic calendar block in a pastel color; the selected one gets a blue outline.
-      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-none select-none ${
+      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-pan-y select-none [-webkit-touch-callout:none] ${lifted ? "z-20 scale-[1.02] shadow-lg" : ""} ${
         preview ? "cursor-grabbing z-20 opacity-90" : draggable ? "cursor-grab hover:brightness-[0.97]" : "cursor-pointer hover:brightness-[0.97]"
       } ${selected ? "z-10 ring-2 ring-primary" : "ring-1 ring-surface"}`}
       style={{
@@ -209,7 +264,7 @@ export default function CalendarEvent({
         {number}. {title}
         {compact && <span className="font-normal opacity-75">, {timeLabel}</span>}
       </p>
-      {!compact && <p className="truncate text-[11px] leading-4 opacity-75">{timeLabel}</p>}
+      {!compact && <p className="truncate text-[12px] leading-4 opacity-75">{timeLabel}</p>}
     </div>
   );
 }

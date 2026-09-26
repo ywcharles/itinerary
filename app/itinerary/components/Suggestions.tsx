@@ -113,7 +113,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
       </div>
 
       {/* Category chips and the personalize field share one row. */}
-      <div className="flex items-center gap-1.5 px-4 pt-2.5">
+      <div className="flex items-center gap-1.5 px-4 pt-2.5 max-md:flex-wrap">
         {(Object.keys(CATEGORIES) as Category[]).map((c) => (
           <button
             key={c}
@@ -127,7 +127,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
           </button>
         ))}
 
-      <form onSubmit={personalize} className="ml-1 flex min-w-0 flex-1 gap-1.5">
+      <form onSubmit={personalize} className="ml-1 flex min-w-0 flex-1 gap-1.5 max-md:ml-0 max-md:basis-full">
         <div className="relative min-w-0 flex-1">
           <input
             value={draft}
@@ -192,7 +192,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
             {current.data.ideas.map((idea) => (
               <li
                 key={idea.placeId}
-                className={`flex items-center gap-3 rounded-xl border p-2 ${
+                className={`flex items-center gap-3 rounded-xl border p-2 max-md:flex-wrap ${
                   idea.topPick ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-line"
                 }`}
               >
@@ -206,7 +206,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
                   <p className="flex items-center gap-1.5 font-medium">
                     <span className="truncate">{idea.name}</span>
                     {idea.topPick && (
-                      <span className="shrink-0 rounded-full bg-primary px-1.5 py-px text-[10px] font-semibold text-white">
+                      <span className="shrink-0 rounded-full bg-primary px-1.5 py-px text-[11px] font-semibold text-white">
                         Top pick
                       </span>
                     )}
@@ -231,7 +231,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
                   type="button"
                   onClick={() => add(idea)}
                   disabled={adding !== null}
-                  className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 max-md:w-full max-md:py-2"
                 >
                   {adding === idea.placeId ? "Adding…" : `Add ${timeRange(idea.start, idea.end)}`}
                 </button>

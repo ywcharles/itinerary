@@ -252,14 +252,15 @@ export default function AddStopDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 max-md:p-0"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-stop-title"
-        className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl flex flex-col gap-4"
+        // Phones: full screen, scrollable.
+        className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl flex flex-col gap-4 max-md:h-full max-md:max-w-none max-md:overflow-y-auto max-md:rounded-none max-md:pt-[max(1.25rem,env(safe-area-inset-top))]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onDialogKeyDown}
       >

@@ -31,11 +31,15 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
   return (
     <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col p-4 gap-3">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold tracking-tight">{formatDay(day)}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          <span className="md:hidden">{formatDay(day, "short")}</span>
+          <span className="max-md:hidden">{formatDay(day)}</span>
+        </h2>
+        {/* Phones use the floating "+" button instead. */}
         <button
           type="button"
           onClick={() => onAdd()}
-          className="rounded-lg bg-primary px-3.5 h-9 text-sm text-white font-medium shadow-sm transition-colors hover:bg-primary/90"
+          className="rounded-lg bg-primary px-3.5 h-9 text-sm text-white font-medium shadow-sm transition-colors hover:bg-primary/90 max-md:hidden"
         >
           + Add activity
         </button>

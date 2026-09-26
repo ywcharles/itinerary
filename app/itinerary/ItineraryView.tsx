@@ -93,10 +93,20 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     setIdeasFor(null);
   }, []);
 
+  // Phones show one view at a time; the details/ideas panel is a bottom sheet there.
+  const [mobileView, setMobileView] = useState<"calendar" | "map">("calendar");
+
   // The activity the user clicked, if it's on the shown day.
   const clickedStop = dayStops.find((stop) => stop.id === selectedId) ?? null;
   // Shown in detail: the clicked one, otherwise the day's first activity.
   const selectedStop = clickedStop ?? dayStops[0] ?? null;
+
+  // Phones only open the sheet for an activity the user tapped (or for ideas).
+  const sheetOpen = !!ideasGap || !!clickedStop;
+  const closeSheet = () => {
+    setSelectedId(null);
+    setIdeasFor(null);
+  };
 
   // Bias place searches toward where the trip already happens.
   const searchCenter = useMemo(() => {
@@ -243,8 +253,26 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} />
-      <div className="flex-1 min-h-0 flex gap-4 p-4">
-        <div className="w-1/2 h-full">
+      {/* Phones: switch between calendar and map (desktop shows both). */}
+      <div className="flex gap-1 border-b border-line bg-surface p-1.5 md:hidden" role="tablist" aria-label="View">
+        {(["calendar", "map"] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            role="tab"
+            aria-selected={mobileView === view}
+            onClick={() => setMobileView(view)}
+            className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition-colors ${
+              mobileView === view ? "bg-canvas text-ink" : "text-muted"
+            }`}
+          >
+            {view === "calendar" ? "🗓️ Calendar" : "🗺️ Map"}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 min-h-0 flex gap-4 p-2 md:p-4">
+        <div className={`h-full max-md:w-full md:w-1/2 ${mobileView === "map" ? "max-md:hidden" : ""}`}>
           <Schedule
             days={days}
             day={day}
@@ -260,16 +288,34 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
             onSuggest={openIdeas}
           />
         </div>
-        <div className="w-1/2 h-full flex flex-col gap-4">
-          <div className="flex-[3] min-h-64">
+        <div className="max-md:contents md:flex md:h-full md:w-1/2 md:flex-col md:gap-4">
+          <div className={`max-md:h-full max-md:w-full md:min-h-64 md:flex-[3] ${mobileView === "calendar" ? "max-md:hidden" : ""}`}>
             <Maps
+              visible={mobileView === "map"}
               stops={dayStops}
               selectedId={selectedStop?.id ?? null}
               onSelect={selectStop}
               onPlaceClick={openAddForPlace}
             />
           </div>
-          <div className="flex-[2] min-h-0">
+          {/* Phones: a dimmed backdrop behind the bottom sheet; tapping it closes the sheet. */}
+          {sheetOpen && (
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={closeSheet}
+              className="fixed inset-0 z-30 bg-black/30 md:hidden"
+            />
+          )}
+          <div
+            className={`md:min-h-0 md:flex-[2] max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:flex max-md:h-[70dvh] max-md:flex-col max-md:rounded-t-2xl max-md:bg-canvas max-md:px-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))] max-md:shadow-2xl ${
+              sheetOpen ? "" : "max-md:hidden"
+            }`}
+          >
+            <div className="flex shrink-0 items-center justify-center py-1.5 md:hidden">
+              <button type="button" onClick={closeSheet} aria-label="Close details" className="h-1.5 w-12 rounded-full bg-muted/40" />
+            </div>
+            <div className="min-h-0 flex-1 md:h-full">
             {ideasGap && ideasFor ? (
               <Suggestions
                 key={`${ideasFor.fromId}->${ideasFor.toId}`}
@@ -289,9 +335,22 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
                 deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
               />
             )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Phones: add an activity from a floating button (desktop has it in the calendar header). */}
+      {!sheetOpen && (
+        <button
+          type="button"
+          onClick={() => openAdd()}
+          aria-label="Add activity"
+          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-3xl leading-none text-white shadow-lg md:hidden"
+        >
+          +
+        </button>
+      )}
 
       {editingStop && (
         <AddStopDialog

@@ -28,7 +28,7 @@ export default function RecentTrips({ title = "Your trips" }: { title?: string }
               onClick={() => forgetTrip(trip.slug)}
               aria-label={`Remove ${trip.name} from this list`}
               title="Remove from this list"
-              className="absolute right-2 top-2 rounded px-1.5 text-xs text-muted opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 focus:opacity-100"
+              className="absolute right-2 top-2 rounded px-1.5 text-xs text-muted opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 focus:opacity-100 max-md:opacity-100"
             >
               ✕
             </button>

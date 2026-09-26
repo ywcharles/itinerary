@@ -15,6 +15,13 @@
   /* The "open during your visit" badge. */
   --color-ok-bg: var(--ok-bg);
   --color-ok-text: var(--ok-text);
+  /* Text sizes a step larger than Tailwind's defaults (12/14/16/18/20/24px) for readability. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.3125rem;
+  --text-2xl: 1.625rem;
   --font-sans: var(--font-primary), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-second), ui-monospace, monospace;
 }
@@ -60,4 +67,13 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
+}
+
+/* Phones: 16px text in form fields, otherwise iOS Safari zooms in when one is focused. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
