@@ -7,6 +7,18 @@ export type Stop = {
   coordinates: { lat: number; lng: number };
   description: string;
   image: string;
+  // Google place id, set when the stop was added through a Places search.
+  place_id?: string;
+};
+
+export type Trip = {
+  name: string;
+  center: { lat: number; lng: number };
+};
+
+export const mockTrip: Trip = {
+  name: 'Ottawa',
+  center: { lat: 45.4215, lng: -75.6972 },
 };
 
 export const mockStops: Stop[] = [
@@ -48,5 +60,31 @@ export const mockStops: Stop[] = [
     name: 'Lunch',
     description: '',
     image: '/images/lunch.jpg',
+  },
+  {
+    id: 'stop-4',
+    start_time: '2026-09-27T10:00:00',
+    end_time: '2026-09-27T11:30:00',
+    google_map_links: 'https://maps.google.com/?q=ByWard+Market',
+    coordinates: {
+      lat: 45.4288,
+      lng: -75.6918,
+    },
+    name: 'ByWard Market',
+    description: '',
+    image: '',
+  },
+  {
+    id: 'stop-5',
+    start_time: '2026-09-27T13:00:00',
+    end_time: '2026-09-27T15:00:00',
+    google_map_links: 'https://maps.google.com/?q=National+Gallery+of+Canada',
+    coordinates: {
+      lat: 45.4295,
+      lng: -75.6989,
+    },
+    name: 'National Gallery of Canada',
+    description: '',
+    image: '',
   },
 ];
