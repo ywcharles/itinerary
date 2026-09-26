@@ -57,6 +57,21 @@ test('invalid input and foreign origins are rejected before Gemini calls', async
   const f = fixture(); assert.equal((await f.post({ dayStart: 'tomorrow' })).status, 400);
   assert.equal((await f.post({}, 'https://other.invalid')).status, 403); assert.equal(f.modelCalls(), 0);
 });
+test('production origin is accepted behind an internal proxy URL', async () => {
+  const f = fixture();
+  assert.equal((await f.post({}, 'https://tripcident.surf')).status, 200);
+  assert.equal(f.modelCalls(), 1);
+});
+test('localhost same-origin requests remain accepted', async () => {
+  assert.equal((await fixture().post({}, 'http://localhost')).status, 200);
+});
+test('lookalike, insecure and opaque production origins are rejected', async () => {
+  const f = fixture();
+  for (const origin of ['https://tripcident.surf.attacker.example', 'http://tripcident.surf', 'null']) {
+    assert.equal((await f.post({}, origin)).status, 403);
+  }
+  assert.equal(f.modelCalls(), 0);
+});
 test('repeated paid reviews are throttled per itinerary', async () => {
   const f = fixture(); for (let i = 0; i < 4; i++) assert.equal((await f.post()).status, 200);
   assert.equal((await f.post()).status, 429); assert.equal(f.modelCalls(), 4);
