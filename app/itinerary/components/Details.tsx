@@ -109,7 +109,7 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
 
   return (
     <div className="rounded-2xl border h-full w-full overflow-y-auto">
-      <div className="relative h-32 w-full shrink-0 bg-secondary">
+      <div className="relative h-24 w-full shrink-0 bg-secondary">
         {place?.photoUrl && (
           // Google photo URLs are signed and short-lived, so next/image optimization isn't a fit.
           // eslint-disable-next-line @next/next/no-img-element
@@ -125,9 +125,9 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
         )}
       </div>
 
-      <div className="p-4 flex flex-col gap-3">
+      <div className="p-3 flex flex-col gap-2">
         <div>
-          <h2 className="text-lg font-semibold">{place?.name ?? stop.name}</h2>
+          <h2 className="text-base font-semibold">{place?.name ?? stop.name}</h2>
           {place?.address && <p className="text-sm text-gray-500">{place.address}</p>}
           {place?.rating != null && (
             <p className="text-sm">
@@ -143,7 +143,7 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
             value={stop.description}
             onChange={(e) => onDescriptionChange(stop.id, e.target.value)}
             placeholder="e.g. Book a table in advance, meet at the entrance…"
-            rows={3}
+            rows={2}
             className="rounded-lg border p-2 text-sm resize-y"
           />
         </label>

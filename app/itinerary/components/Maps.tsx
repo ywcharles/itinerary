@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
+import { fetchLeg, formatDuration } from "@/lib/routes";
 import { Stop } from "../data";
 
 // Tailwind theme colors from globals.css (Google's pins can't read CSS variables).
@@ -54,17 +55,69 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, stopsKey]);
 
-  // Route line connecting the stops in time order.
+  // Routes between consecutive stops (1 -> 2 -> 3 ...) with a travel time label on each leg.
   useEffect(() => {
     if (!map || stops.length < 2) return;
-    const line = new google.maps.Polyline({
-      map,
-      path: stops.map((stop) => stop.coordinates),
-      strokeColor: PRIMARY,
-      strokeOpacity: 0.7,
-      strokeWeight: 3,
+    let active = true;
+    const overlays: { setMap: (map: null) => void }[] = [];
+    const labels: google.maps.marker.AdvancedMarkerElement[] = [];
+
+    Promise.all([loadGoogleLibrary("marker"), ...stops.slice(1).map((stop, i) =>
+      fetchLeg(stops[i].coordinates, stop.coordinates).catch((error) => {
+        console.error("Route lookup failed", error);
+        return undefined; // undefined = failed, null = same place
+      }),
+    )]).then(([{ AdvancedMarkerElement }, ...legs]) => {
+      if (!active) return;
+      legs.forEach((leg, i) => {
+        const from = stops[i];
+        const to = stops[i + 1];
+        if (leg === null) return;
+
+        // Fall back to a straight dashed line when no route could be computed.
+        const path = leg?.path ?? [from.coordinates, to.coordinates];
+        const dotted = !leg || leg.mode === "WALKING";
+        overlays.push(new google.maps.Polyline({
+          map,
+          path,
+          strokeColor: PRIMARY,
+          strokeOpacity: dotted ? 0 : 0.8,
+          strokeWeight: 4,
+          icons: dotted
+            ? [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.9, scale: 3 }, offset: "0", repeat: "12px" }]
+            : undefined,
+        }));
+        if (!leg) return;
+
+        // Flag legs that take longer than the gap between the two activities.
+        const gapMinutes = (new Date(to.start_time).getTime() - new Date(from.end_time).getTime()) / 60000;
+        const tooTight = leg.durationMinutes > gapMinutes;
+
+        const label = document.createElement("div");
+        label.className = `rounded-full border bg-white px-2 py-0.5 text-xs font-medium shadow ${
+          tooTight ? "border-red-500 text-red-600" : "border-primary text-primary"
+        }`;
+        label.textContent = `${leg.mode === "WALKING" ? "🚶" : "🚗"} ${formatDuration(leg.durationMinutes)}`;
+        label.title = tooTight
+          ? `Travel takes ${formatDuration(leg.durationMinutes)} but there are only ${Math.max(0, Math.round(gapMinutes))} min between these activities`
+          : `${(leg.distanceMeters / 1000).toFixed(1)} km`;
+        // Center the label on the route's midpoint instead of anchoring it above.
+        label.style.transform = "translateY(50%)";
+
+        labels.push(new AdvancedMarkerElement({
+          map,
+          position: path[Math.floor(path.length / 2)],
+          content: label,
+          zIndex: 500,
+        }));
+      });
     });
-    return () => line.setMap(null);
+
+    return () => {
+      active = false;
+      overlays.forEach((overlay) => overlay.setMap(null));
+      labels.forEach((label) => { label.map = null; });
+    };
   }, [map, stops]);
 
   // Numbered pins; the selected stop is larger and uses the primary color.

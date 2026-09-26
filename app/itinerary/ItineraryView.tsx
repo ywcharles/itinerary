@@ -70,16 +70,16 @@ export default function ItineraryView() {
           />
         </div>
         <div className="w-1/2 h-full flex flex-col gap-4">
-          <div className="flex-1 min-h-0">
-            <Details stop={selectedStop} onDescriptionChange={updateDescription} />
-          </div>
-          <div className="h-2/5 min-h-56">
+          <div className="flex-[3] min-h-64">
             <Maps
               stops={dayStops}
               selectedId={selectedStop?.id ?? null}
               onSelect={setSelectedId}
               fallbackCenter={trip.center}
             />
+          </div>
+          <div className="flex-[2] min-h-0">
+            <Details stop={selectedStop} onDescriptionChange={updateDescription} />
           </div>
         </div>
       </div>
