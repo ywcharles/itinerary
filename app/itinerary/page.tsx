@@ -7,7 +7,7 @@ type Props = {};
 
 const Itinerary = (props: Props) => {
   return (
-    <div className="flex justify-center items-center h-screen w-full text-color gap-4 p-4 pt-20">
+    <div className="flex justify-center items-center h-screen w-full text-color gap-4 p-4">
       <div className="w-1/2 h-full flex items-center justify-center gap-4">
         <Schedule />
       </div>
