@@ -14,7 +14,7 @@ The app's existing Google Maps JavaScript key must have Places and Routes access
 2. Optionally describe preferences and lock reservations or other fixed activities.
 3. Request a review. Gemini returns an assessment and at most three independent suggestions: reschedule one existing activity or add one place from the fetched Google Places candidates.
 4. **Preview** validates the visit and shows a dashed block in the existing calendar without saving. **Accept** rechecks the current itinerary, overlaps, locks, opening hours and actual routes before saving. **Dismiss** leaves the itinerary unchanged. **Something else** refines only that suggestion while retaining the others and the rejection history.
-5. Accepted activities are locked for the next review. Refresh after a change so later suggestions use the latest schedule. **Undo last AI change** reverses the most recent accepted change, provided the itinerary has not changed since.
+5. Accept multiple suggestions from the same review, one at a time. Each acceptance advances the review snapshot to that saved change and revalidates remaining suggestions against the updated schedule, without another Gemini call. Accepted activities are locked. Unrelated edits still require a fresh review. **Undo last AI change** reverses the most recent accepted change, provided the itinerary has not changed since.
 
 Review preference/lock/rejection state is local to the open review panel. Accepted activities persist and sync through the existing Supabase realtime connection. Overnight activities are not automatically rescheduled. No bulk replace/delete or dependent multi-activity edits are supported in this first version.
 

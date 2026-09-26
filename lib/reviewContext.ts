@@ -1,6 +1,7 @@
+import { reviewGaps, requestedCategories } from "./reviewDiscovery";
 import { loadGoogleLibrary } from "./googleMaps";
 import { fetchLeg } from "./routes";
-import { defaultCategory, fetchSuggestions, type Category } from "./suggestions";
+import { defaultCategory, fetchSuggestions } from "./suggestions";
 import { visitStatus, type Period } from "./openingHours";
 import { validateProposal, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "./aiReview";
 import { byStartTime, coordinatesOf, placeIdOf } from "../app/itinerary/stopUtils";
@@ -17,7 +18,7 @@ export async function placeHours(stop: Stop, start = stop.start_time, end = stop
   return visitStatus(periods, start, end, place.utcOffsetMinutes ?? null);
 }
 
-export async function collectReviewContext(stops: Stop[], allStops: Stop[], preferences: string) {
+export async function collectReviewContext(stops: Stop[], allStops: Stop[], preferences: string, day: string) {
   const ordered = [...stops].sort(byStartTime);
   const excluded = new Set(allStops.flatMap((s) => [s.name.toLowerCase(), ...(placeIdOf(s) ? [placeIdOf(s)!] : [])]));
   const legs = await Promise.all(ordered.slice(1).map(async (to, i) => {
@@ -26,19 +27,20 @@ export async function collectReviewContext(stops: Stop[], allStops: Stop[], pref
     return { fromId: from.id, toId: to.id, minutes: leg?.durationMinutes ?? null, mode: leg?.mode ?? "unknown", gapMinutes: (Date.parse(to.start_time) - Date.parse(from.end_time)) / 60_000 };
   }));
   const hours = await Promise.all(ordered.map(async (s) => ({ stopId: s.id, status: await placeHours(s).catch(() => ({ kind: "unknown" })) })));
-  // Bound Google Places requests: two suitable gaps, two categories each.
-  const gaps = ordered.slice(1).flatMap((to, i) => {
-    const from = ordered[i], a = coordinatesOf(from), b = coordinatesOf(to);
-    const free = (Date.parse(to.start_time) - Date.parse(from.end_time)) / 60_000;
-    return a && b && free >= 45 ? [{ gap: { start: from.end_time, end: to.start_time, from: { name: from.name, position: a }, to: { name: to.name, position: b } }, free }] : [];
-  }).slice(0, 2);
-  const extra: Category = /outdoor|garden|park|nature/i.test(preferences) ? "outdoors" : /museum|art|culture/i.test(preferences) ? "sights" : "coffee";
-  const results = await Promise.all(gaps.flatMap(({ gap, free }) => [...new Set([defaultCategory(gap, free), extra])].map((category) => fetchSuggestions(gap, category, excluded, 3).catch(() => []))));
+  // At most three windows and two categories per window.
+  const gaps = reviewGaps(ordered, day);
+  const requested = requestedCategories(preferences);
+  let failedSearches = 0;
+  const results = await Promise.all(gaps.flatMap((gap) => {
+    const free = (Date.parse(gap.end) - Date.parse(gap.start)) / 60_000;
+    const categories = requested.length ? requested : [...new Set([defaultCategory(gap, free), "sights" as const])];
+    return categories.map((category) => fetchSuggestions(gap, category, excluded, 3).catch(() => { failedSearches++; return []; }));
+  }));
   const candidates: ReviewCandidate[] = [];
   for (const idea of results.flat()) {
     if (!candidates.some((c) => c.id === idea.placeId)) candidates.push({ id: idea.placeId, name: idea.name, latitude: idea.position.lat, longitude: idea.position.lng, start: idea.start, end: idea.end, category: idea.category, hours: idea.hours });
   }
-  return { candidates: candidates.slice(0, 8), legs, hours };
+  return { candidates: candidates.slice(0, 8), legs, hours, discovery: { searchedWindows: gaps.length, categories: requested, failedSearches, calendarHours: "08:00–22:00", note: failedSearches ? "Some nearby-place searches failed. Explain this limitation; retry may help." : "Only nearby places fitting travel and regular hours are supplied. If none match, explain the limitation." } };
 }
 
 /** Revalidate actual routes and regular opening hours immediately before saving. */

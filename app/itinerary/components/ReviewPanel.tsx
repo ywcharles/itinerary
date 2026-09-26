@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { collectReviewContext, checkProposedVisit } from "@/lib/reviewContext";
-import { stopFingerprint, type DayReview, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "@/lib/aiReview";
+import { stopFingerprint, validateProposal, type DayReview, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "@/lib/aiReview";
 import type { Stop } from "../types";
 
 type Props = {
   itineraryId: string; day: string; stops: Stop[]; allStops: Stop[];
   onClose: () => void;
   onPreview: (proposal: ReviewProposal | null, candidates: ReviewCandidate[]) => void;
-  onApply: (proposal: ReviewProposal, candidates: ReviewCandidate[], bounds: ReviewBounds, snapshot: string) => Promise<Stop>;
+  onApply: (proposal: ReviewProposal, candidates: ReviewCandidate[], bounds: ReviewBounds, snapshot: string) => Promise<{ saved: Stop; snapshot: string }>;
   onUndo: () => Promise<void>; canUndo: boolean;
 };
 type Result = DayReview & { snapshot: string; candidates: ReviewCandidate[] };
@@ -51,13 +51,13 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
     const extra = refine ? `Replace this suggestion: ${JSON.stringify(refine)}. Traveler says: ${instruction.trim() || "Suggest a different option."}` : "";
     const history = [...feedback, ...(extra ? [extra] : [])].slice(-20);
     try {
-      const context = await collectReviewContext(stops, allStops, `${preferences} ${instruction}`);
+      const context = await collectReviewContext(stops, allStops, `${preferences} ${instruction}`, day);
       if (controller.signal.aborted) return;
       const located = stops.find((s) => s.latitude != null && s.longitude != null);
       const weather = located ? await fetch(`/api/weather?${new URLSearchParams({ day, lat: String(located.latitude), lon: String(located.longitude) })}`, { signal: controller.signal }).then((r) => r.ok ? r.json() : null).catch(() => null) : null;
       if (controller.signal.aborted) return;
       setBusy("Gemini is reviewing your day…");
-      const response = await fetch("/api/itinerary-review", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ itineraryId, day, dayStart, dayEnd: bounds.dayEnd, timeZone, snapshot, lockedIds, preferences, feedback: history, refine: !!refine, candidates: context.candidates, evidence: { legs: context.legs, hours: context.hours, weather } }) });
+      const response = await fetch("/api/itinerary-review", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ itineraryId, day, dayStart, dayEnd: bounds.dayEnd, timeZone, snapshot, lockedIds, preferences, feedback: history, refine: !!refine, candidates: context.candidates, evidence: { legs: context.legs, hours: context.hours, discovery: context.discovery, weather } }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Couldn’t review this day.");
       if (controller.signal.aborted) return;
@@ -89,10 +89,13 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
     if (!result || stale) return;
     setBusy("Checking and saving this change…"); setError("");
     try {
-      const saved = await onApply(p, result.candidates, bounds, result.snapshot);
+      const { saved, snapshot: savedSnapshot } = await onApply(p, result.candidates, bounds, result.snapshot);
+      // Advance only to the snapshot produced by this save, never to unrelated realtime edits.
+      setResult((current) => current ? { ...current, snapshot: savedSnapshot } : current);
+      setChecks({});
       setAccepted((ids) => [...ids, p.id]); setLockedIds((ids) => [...new Set([...ids, saved.id])]);
       setFeedback((items) => [...items, `Accepted ${p.title}. Keep ${saved.name} at ${saved.start_time} to ${saved.end_time}.`].slice(-20));
-      setNotice("Saved. This activity is now locked for the next review. Refresh the review before applying another suggestion.");
+      setNotice("Saved. You can accept another suggestion from this review. Each change is checked against your updated day.");
       onPreview(null, []); setPreviewId(null);
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save this change."); }
     finally { setBusy(""); }
@@ -124,10 +127,12 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
             const original = allStops.find((s) => s.id === p.stopId);
             const isAccepted = accepted.includes(p.id), isDismissed = dismissed.includes(p.id);
             const isLocked = p.kind === "reschedule" && lockedIds.includes(p.stopId);
+            const conflict = !isAccepted && !isDismissed && !isLocked && !stale ? validateProposal(p, allStops, result.candidates, bounds) : null;
             const disabled = !!busy || stale || isAccepted || isDismissed || isLocked;
             return <article key={p.id} className={`rounded-xl border p-4 ${previewId === p.id ? "border-primary" : "border-line"}`}><div className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{p.title}</h3><span className="shrink-0 text-xs text-muted">{isAccepted ? "Accepted ✓" : isDismissed ? "Dismissed" : p.kind === "add" ? "Add a stop" : "Change times"}</span></div><p className="mt-2 text-sm leading-relaxed text-muted">{p.reason}</p><div className="my-3 rounded-lg bg-canvas p-3 text-sm">{original && <div className="text-muted"><span className="mr-2 text-xs">BEFORE</span>{clock(original.start_time)} – {clock(original.end_time)}</div>}<div><span className="mr-2 text-xs text-primary">PROPOSED</span>{clock(p.start)} – {clock(p.end)}</div></div>
               {checks[p.id] && <ul className="mb-3 space-y-1 text-xs text-muted">{checks[p.id].map((c) => <li key={c}>{c}</li>)}</ul>}
               {isLocked && !isAccepted && <p className="mb-2 text-xs text-muted">This activity is locked. Unlock it to consider this change.</p>}
+              {conflict && <p className="mb-2 text-xs text-muted">{conflict} You can dismiss this suggestion or ask for an alternative.</p>}
               {!isAccepted && !isDismissed && <div className="flex flex-wrap gap-2"><button type="button" disabled={disabled} className={button} onClick={() => preview(p)}>Preview</button><button type="button" disabled={disabled} className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white disabled:opacity-50" onClick={() => accept(p)}>Accept</button><button type="button" disabled={!!busy} className={button} onClick={() => { setDismissed((ids) => [...ids, p.id]); setFeedback((items) => [...items, `Dismissed: ${p.title}. ${p.reason}`].slice(-20)); if (previewId === p.id) { onPreview(null, []); setPreviewId(null); } }}>Dismiss</button><button type="button" disabled={disabled} className={button} onClick={() => { setRefining(p.id); setInstruction(""); }}>Something else</button></div>}
               {refining === p.id && !isDismissed && <form className="mt-3 space-y-2" onSubmit={(e) => { e.preventDefault(); review(p); }}><label htmlFor={`refine-${p.id}`} className="block text-xs text-muted">What should change about this suggestion?</label><input id={`refine-${p.id}`} maxLength={500} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Keep lunch. Suggest a shorter activity instead." className="w-full rounded-lg border border-line bg-canvas p-2 text-sm" /><button type="submit" disabled={disabled} className={button}>Find an alternative</button></form>}
             </article>;

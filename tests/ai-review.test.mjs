@@ -39,6 +39,15 @@ test('revision check ignores ordering but detects collaborator edits and deletio
   assert.notEqual(stopFingerprint([a, b]), stopFingerprint([a, { ...b, description: 'Reservation' }]));
   assert.notEqual(stopFingerprint([a, b]), stopFingerprint([a]));
 });
+test('remaining suggestions are checked against previously accepted changes', () => {
+  const saved = { ...a, start_time: proposal.start, end_time: proposal.end };
+  const updated = [saved, b];
+  const locked = { ...bounds, lockedIds: [a.id] };
+  const laterLunch = { ...proposal, stopId: b.id, start: '2026-09-26T13:00:00Z', end: '2026-09-26T14:00:00Z' };
+  assert.equal(validateProposal(laterLunch, updated, [], locked), null);
+  assert.match(validateProposal({ ...laterLunch, start: '2026-09-26T10:30:00Z', end: '2026-09-26T11:30:00Z' }, updated, [], locked), /overlaps/);
+  assert.match(validateProposal({ ...proposal, start: '2026-09-26T08:00:00Z', end: '2026-09-26T09:00:00Z' }, updated, [], locked), /locked/);
+});
 test('model output must match the executable contract', () => {
   assert.equal(parseReview({ summary: 'A good day', observations: [], proposals: [proposal] }).proposals.length, 1);
   assert.throws(() => parseReview({ summary: 'Oops', observations: [], proposals: [{ ...proposal, kind: 'delete' }] }));
@@ -58,4 +67,23 @@ test('out-of-range, past and missing forecast data are not fabricated', () => {
   assert.equal(forecastForDay(forecast, '2026-09-25', '2026-09-26').status, 'past');
   assert.equal(forecastForDay({ ...forecast, daily: { ...forecast.daily, temperature_2m_max: [null] } }, '2026-09-26', '2026-09-26').status, 'unavailable');
   assert.throws(() => forecastForDay({}, '2026-09-26', '2026-09-26'));
+});
+
+const { reviewGaps, requestedCategories } = await loadPureModule('../lib/reviewDiscovery.ts');
+test('single activity discovers free time before and after, with only real travel anchors', () => {
+  const stop = { ...a, start_time: new Date('2026-09-27T12:00:00').toISOString(), end_time: new Date('2026-09-27T13:00:00').toISOString() };
+  const gaps = reviewGaps([stop], '2026-09-27');
+  assert.equal(gaps.length, 2);
+  assert.ok(gaps.some(g => g.openStart && g.end === stop.start_time));
+  assert.ok(gaps.some(g => g.openEnd && g.start === stop.end_time));
+  assert.deepEqual(requestedCategories('add a shopping mall closeby, and any historic place as well in the day'), ['shopping', 'history']);
+});
+test('discovery never searches occupied time, including nested overlaps', () => {
+  const at = h => new Date(`2026-09-27T${h}:00:00`).toISOString();
+  const stops = [{ ...a, start_time: at('09'), end_time: at('15') }, { ...a, id: 'b', start_time: at('10'), end_time: at('11') }, { ...a, id: 'c', start_time: at('13'), end_time: at('14') }];
+  for (const gap of reviewGaps(stops, '2026-09-27')) {
+    for (const stop of stops) assert.ok(Date.parse(gap.end) <= Date.parse(stop.start_time) || Date.parse(gap.start) >= Date.parse(stop.end_time));
+  }
+  assert.deepEqual(reviewGaps([], '2026-09-27'), []);
+  assert.deepEqual(reviewGaps([{ ...stops[0], latitude: null }], '2026-09-27'), []);
 });

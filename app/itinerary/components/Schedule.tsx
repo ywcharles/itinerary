@@ -33,8 +33,10 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
 
   return (
     <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col p-4 gap-3">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{formatDay(day)}</h2>
+        <div className="ml-auto flex items-center gap-2">
+          {!loading && stops.length > 0 && <DayWeather day={day} location={weatherLocation} />}
         <button
           type="button"
           onClick={() => onAdd()}
@@ -42,6 +44,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
         >
           + Add activity
         </button>
+        </div>
       </div>
 
       {days.length > 1 && (
@@ -65,7 +68,6 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           ))}
         </div>
       )}
-      {!loading && weatherLocation && <DayWeather day={day} location={weatherLocation} />}
       <div className="w-full flex-1 min-h-0">
         <Calendar
           day={day}

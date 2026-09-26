@@ -284,7 +284,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
     setUndoChange({ before, after: saved, snapshot: stopFingerprint(after) });
     setSelectedId(saved.id);
     setAiPreview(null);
-    return saved;
+    return { saved, snapshot: stopFingerprint(after) };
   };
 
   const undoAiChange = async () => {
