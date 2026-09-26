@@ -45,9 +45,24 @@ export function formatTime(date: Date) {
     minute: "2-digit",
   });
 }
-// Stop times are local wall-clock strings (YYYY-MM-DDTHH:mm:ss), so the day is the date part.
-export function dayKey(isoDateTime: string) {
-  return isoDateTime.slice(0, 10);
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** Local calendar day (YYYY-MM-DD) of a timestamp. Stop times are stored as UTC ISO strings. */
+export function dayKey(timestamp: string | Date) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Local time (HH:mm) of a timestamp, as used by <input type="time">. */
+export function timeOfDay(timestamp: string | Date) {
+  const date = new Date(timestamp);
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** UTC ISO timestamp for a local day plus minutes since local midnight. */
+export function toTimestamp(day: string, minutes: number) {
+  return new Date(`${day}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}:00`).toISOString();
 }
 
 export function formatDay(day: string, format: "long" | "short" = "long") {

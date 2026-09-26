@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
-import { Stop } from "../data";
+import type { Stop } from "../types";
+import { coordinatesOf, placeIdOf } from "../stopUtils";
 
 type PlaceInfo = {
   name: string;
@@ -20,7 +21,9 @@ type PlaceInfo = {
 const placeCache = new Map<string, Promise<PlaceInfo | null>>();
 
 function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
-  const cached = placeCache.get(stop.id);
+  // Keyed on location too, so a stop whose place changes is looked up again.
+  const cacheKey = `${stop.id}|${stop.google_maps_url}|${stop.latitude},${stop.longitude}`;
+  const cached = placeCache.get(cacheKey);
   if (cached) return cached;
 
   const request = loadGoogleLibrary("places").then(async ({ Place }) => {
@@ -34,19 +37,22 @@ function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
       "websiteURI",
       "googleMapsURI",
     ];
+    const placeId = placeIdOf(stop);
+    const coordinates = coordinatesOf(stop);
     let place: google.maps.places.Place | undefined;
-    if (stop.place_id) {
-      place = new Place({ id: stop.place_id });
+    if (placeId) {
+      place = new Place({ id: placeId });
       await place.fetchFields({ fields });
-    } else {
+    } else if (coordinates) {
       const { places } = await Place.searchByText({
         textQuery: stop.name,
-        locationBias: { center: stop.coordinates, radius: 1000 },
+        locationBias: { center: coordinates, radius: 1000 },
         maxResultCount: 1,
         fields,
       });
       place = places[0];
     }
+    // Without a place id or coordinates a name search would match anywhere in the world.
     if (!place) return null;
 
     const photo = place.photos?.[0];
@@ -64,14 +70,84 @@ function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
   });
 
   // Drop failed lookups from the cache so they are retried next time.
-  request.catch(() => placeCache.delete(stop.id));
-  placeCache.set(stop.id, request);
+  request.catch(() => placeCache.delete(cacheKey));
+  placeCache.set(cacheKey, request);
   return request;
+}
+
+const SAVE_DELAY_MS = 600;
+
+type NotesProps = {
+  value: string;
+  onSave: (text: string) => Promise<void>;
+};
+
+// Notes are saved to Supabase shortly after typing stops. Updates from other people
+// (via realtime) replace the text only while there are no unsaved local edits.
+function NotesField({ value, onSave }: NotesProps) {
+  const [draft, setDraft] = useState(value);
+  const [dirty, setDirty] = useState(false);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    if (!dirty) setDraft(value);
+  }
+
+  const latest = useRef({ draft, dirty, onSave });
+  useEffect(() => {
+    latest.current = { draft, dirty, onSave };
+  });
+
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(async () => {
+      const text = draft;
+      setStatus("saving");
+      try {
+        await onSave(text);
+        setStatus("saved");
+        if (latest.current.draft === text) setDirty(false);
+      } catch (error) {
+        console.error("Saving notes failed", error);
+        setStatus("error");
+      }
+    }, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draft, dirty, onSave]);
+
+  // Don't lose a pending edit when switching to another stop.
+  useEffect(() => () => {
+    if (latest.current.dirty) latest.current.onSave(latest.current.draft).catch(console.error);
+  }, []);
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-sm font-semibold flex items-baseline justify-between">
+        Notes for the group
+        <span className={`text-xs font-normal ${status === "error" ? "text-red-600" : "text-gray-400"}`}>
+          {status === "saving" && "Saving…"}
+          {status === "saved" && !dirty && "Saved"}
+          {status === "error" && "Couldn't save"}
+        </span>
+      </span>
+      <textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setDirty(true);
+        }}
+        placeholder="e.g. Book a table in advance, meet at the entrance…"
+        rows={2}
+        className="rounded-lg border p-2 text-sm resize-y"
+      />
+    </label>
+  );
 }
 
 type Props = {
   stop: Stop | null;
-  onDescriptionChange: (id: string, description: string) => void;
+  onDescriptionChange: (id: string, description: string) => Promise<void>;
 };
 
 const Details = ({ stop, onDescriptionChange }: Props) => {
@@ -91,13 +167,14 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
         if (active) setResult({ stopId, place: null, failed: true });
       });
     return () => { active = false; };
-    // Only refetch when a different stop is selected, not when its description is edited.
+    // Only refetch when the selected stop or its location changes, not when its notes are edited.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stop?.id]);
+  }, [stop?.id, stop?.google_maps_url, stop?.latitude, stop?.longitude]);
 
   const current = result && stop && result.stopId === stop.id ? result : null;
   const place = current?.place ?? null;
   const status = !current ? "loading" : current.failed ? "error" : "idle";
+  const mapsLink = place?.mapsUrl || stop?.google_maps_url || null;
 
   if (!stop) {
     return (
@@ -129,6 +206,9 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
         <div>
           <h2 className="text-base font-semibold">{place?.name ?? stop.name}</h2>
           {place?.address && <p className="text-sm text-gray-500">{place.address}</p>}
+          {current && !place && !current.failed && (
+            <p className="text-sm text-gray-500">No location set for this activity.</p>
+          )}
           {place?.rating != null && (
             <p className="text-sm">
               ★ {place.rating.toFixed(1)}
@@ -137,16 +217,11 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
           )}
         </div>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">Notes for the group</span>
-          <textarea
-            value={stop.description}
-            onChange={(e) => onDescriptionChange(stop.id, e.target.value)}
-            placeholder="e.g. Book a table in advance, meet at the entrance…"
-            rows={2}
-            className="rounded-lg border p-2 text-sm resize-y"
-          />
-        </label>
+        <NotesField
+          key={stop.id}
+          value={stop.description ?? ""}
+          onSave={(text) => onDescriptionChange(stop.id, text)}
+        />
 
         {status === "error" && (
           <p className="text-sm text-red-600">Couldn&apos;t load place info from Google.</p>
@@ -167,10 +242,10 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
           </div>
         )}
 
-        {place && (place.website || place.mapsUrl) && (
+        {(place?.website || mapsLink) && (
           <div className="flex gap-4 text-sm text-primary">
-            {place.website && <a href={place.website} target="_blank" rel="noreferrer">Website</a>}
-            {place.mapsUrl && <a href={place.mapsUrl} target="_blank" rel="noreferrer">Open in Google Maps</a>}
+            {place?.website && <a href={place.website} target="_blank" rel="noreferrer">Website</a>}
+            {mapsLink && <a href={mapsLink} target="_blank" rel="noreferrer">Open in Google Maps</a>}
           </div>
         )}
 

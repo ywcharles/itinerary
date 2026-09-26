@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
 import { fetchLeg, formatDuration } from "@/lib/routes";
-import { Stop } from "../data";
+import type { Stop } from "../types";
+import { coordinatesOf, LatLng } from "../stopUtils";
 
 // Tailwind theme colors from globals.css (Google's pins can't read CSS variables).
 const PRIMARY = "#2274A5";
@@ -13,10 +14,29 @@ type Props = {
   stops: Stop[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  fallbackCenter: { lat: number; lng: number };
 };
 
-export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Props) {
+type Located = { stop: Stop; number: number; position: LatLng };
+
+// World view until the itinerary has located stops.
+const WORLD = { center: { lat: 20, lng: 0 }, zoom: 2 };
+
+export default function Maps({ stops, selectedId, onSelect }: Props) {
+  // Numbers follow the calendar order; stops without coordinates keep their number but get no pin.
+  // Keyed on the fields the map uses, so editing a stop's notes doesn't redraw routes and pins.
+  const mapKey = stops
+    .map((s) => `${s.id}|${s.name}|${s.latitude},${s.longitude}|${s.start_time}|${s.end_time}`)
+    .join(";");
+  const located = useMemo<Located[]>(
+    () =>
+      stops.flatMap((stop, index) => {
+        const position = coordinatesOf(stop);
+        return position ? [{ stop, number: index + 1, position }] : [];
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mapKey],
+  );
+
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
@@ -25,57 +45,52 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
     loadGoogleLibrary("maps").then(({ Map }) => {
       if (active && ref.current) {
         setMap(new Map(ref.current, {
-          center: fallbackCenter,
-          zoom: 13,
+          ...WORLD,
           mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID,
           streetViewControl: false,
         }));
       }
     });
     return () => { active = false; };
-    // The map is created once; later center changes go through fitBounds below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fit the view to the shown stops whenever the set of stops changes (e.g. switching days).
-  const stopsKey = stops.map((stop) => `${stop.id}@${stop.coordinates.lat},${stop.coordinates.lng}`).join("|");
   useEffect(() => {
     if (!map) return;
-    if (stops.length === 0) {
-      map.setCenter(fallbackCenter);
-      map.setZoom(13);
-    } else if (stops.length === 1) {
-      map.setCenter(stops[0].coordinates);
+    if (located.length === 0) {
+      map.setCenter(WORLD.center);
+      map.setZoom(WORLD.zoom);
+    } else if (located.length === 1) {
+      map.setCenter(located[0].position);
       map.setZoom(15);
     } else {
       const bounds = new google.maps.LatLngBounds();
-      stops.forEach((stop) => bounds.extend(stop.coordinates));
+      located.forEach(({ position }) => bounds.extend(position));
       map.fitBounds(bounds, 48);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, stopsKey]);
+  }, [map, located]);
 
   // Routes between consecutive stops (1 -> 2 -> 3 ...) with a travel time label on each leg.
   useEffect(() => {
-    if (!map || stops.length < 2) return;
+    if (!map || located.length < 2) return;
     let active = true;
     const overlays: { setMap: (map: null) => void }[] = [];
     const labels: google.maps.marker.AdvancedMarkerElement[] = [];
 
-    Promise.all([loadGoogleLibrary("marker"), ...stops.slice(1).map((stop, i) =>
-      fetchLeg(stops[i].coordinates, stop.coordinates).catch((error) => {
+    Promise.all([loadGoogleLibrary("marker"), ...located.slice(1).map((to, i) =>
+      fetchLeg(located[i].position, to.position).catch((error) => {
         console.error("Route lookup failed", error);
         return undefined; // undefined = failed, null = same place
       }),
     )]).then(([{ AdvancedMarkerElement }, ...legs]) => {
       if (!active) return;
       legs.forEach((leg, i) => {
-        const from = stops[i];
-        const to = stops[i + 1];
+        const from = located[i].stop;
+        const to = located[i + 1].stop;
         if (leg === null) return;
 
         // Fall back to a straight dashed line when no route could be computed.
-        const path = leg?.path ?? [from.coordinates, to.coordinates];
+        const path = leg?.path ?? [located[i].position, located[i + 1].position];
         const dotted = !leg || leg.mode === "WALKING";
         overlays.push(new google.maps.Polyline({
           map,
@@ -118,7 +133,7 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
       overlays.forEach((overlay) => overlay.setMap(null));
       labels.forEach((label) => { label.map = null; });
     };
-  }, [map, stops]);
+  }, [map, located]);
 
   // Numbered pins; the selected stop is larger and uses the primary color.
   useEffect(() => {
@@ -127,10 +142,10 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
     const markers: google.maps.marker.AdvancedMarkerElement[] = [];
     loadGoogleLibrary("marker").then(({ AdvancedMarkerElement, PinElement }) => {
       if (!active) return;
-      stops.forEach((stop, index) => {
+      located.forEach(({ stop, number, position }) => {
         const selected = stop.id === selectedId;
         const pin = new PinElement({
-          glyphText: String(index + 1),
+          glyphText: String(number),
           glyphColor: "#FFFFFF",
           background: selected ? PRIMARY : SECONDARY,
           borderColor: selected ? "#174E6F" : "#5E8A60",
@@ -138,10 +153,10 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
         });
         const marker = new AdvancedMarkerElement({
           map,
-          position: stop.coordinates,
-          title: `${index + 1}. ${stop.name}`,
+          position,
+          title: `${number}. ${stop.name}`,
           content: pin,
-          zIndex: selected ? 1000 : index,
+          zIndex: selected ? 1000 : number,
           gmpClickable: true,
         });
         marker.addEventListener("gmp-click", () => onSelect(stop.id));
@@ -152,7 +167,7 @@ export default function Maps({ stops, selectedId, onSelect, fallbackCenter }: Pr
       active = false;
       markers.forEach((marker) => { marker.map = null; });
     };
-  }, [map, stops, selectedId, onSelect]);
+  }, [map, located, selectedId, onSelect]);
 
   return (
     <div

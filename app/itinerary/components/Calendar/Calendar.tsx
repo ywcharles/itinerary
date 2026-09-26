@@ -1,20 +1,37 @@
 "use client";
 
 import React from "react";
-import { Stop } from "../../data";
 import CalendarGrid, { TimeRange } from "./CalendarGrid";
+import type { Stop } from "../../types";
 
 type Props = {
   day: string;
   stops: Stop[];
+  loading: boolean;
+  error: string | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreateRange: (range: TimeRange) => void;
 };
 
-export default function Calendar({ day, stops, selectedId, onSelect, onCreateRange }: Props) {
+export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange }: Props) {
   return (
-    <div className="w-full h-full overflow-auto rounded-xl border bg-white">
+    <div className="relative w-full h-full overflow-auto rounded-xl border bg-white">
+      {/* Status banner; the grid stays usable so events can be dragged in even when empty. */}
+      {(loading || error || stops.length === 0) && (
+        <div className="sticky top-0 z-10 border-b bg-white/95 px-4 py-2 text-sm">
+          {loading && <span className="text-gray-500">Loading events…</span>}
+          {!loading && error && (
+            <span className="text-red-600">Couldn&apos;t load events: {error}</span>
+          )}
+          {!loading && !error && stops.length === 0 && (
+            <span className="text-gray-500">
+              No events on this day yet. Tap Add or drag on the grid to create one.
+            </span>
+          )}
+        </div>
+      )}
+
       <CalendarGrid
         day={day}
         stops={stops}

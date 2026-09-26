@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import CalendarEvent from "./CalendarEvent";
-import { formatHour, formatTime } from "./calendarUtils";
-import { Stop } from "../../data";
+import { formatHour, formatTime, toTimestamp } from "./calendarUtils";
+import type { Stop } from "../../types";
 
 const START_HOUR = 6;
 const END_HOUR = 22;
@@ -24,12 +24,6 @@ function minutesAt(offsetY: number) {
   const raw = START_HOUR * 60 + (offsetY / HOUR_HEIGHT) * 60;
   const snapped = Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES;
   return Math.min(Math.max(snapped, START_HOUR * 60), END_HOUR * 60);
-}
-
-function toIso(day: string, minutes: number) {
-  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
-  const mm = String(minutes % 60).padStart(2, "0");
-  return `${day}T${hh}:${mm}:00`;
 }
 
 export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange }: Props) {
@@ -62,7 +56,7 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
       start = end - DEFAULT_DURATION_MINUTES;
     }
     setDrag(null);
-    onCreateRange({ start: toIso(day, start), end: toIso(day, end) });
+    onCreateRange({ start: toTimestamp(day, start), end: toTimestamp(day, end) });
   };
 
   const preview = drag && {
@@ -123,8 +117,8 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
             className="pointer-events-none absolute left-2 right-4 rounded-lg border-2 border-dashed border-primary bg-primary/10 px-3 py-1 text-xs text-primary"
             style={{ top: `${preview.top}px`, height: `${preview.height}px` }}
           >
-            {formatTime(new Date(toIso(day, Math.min(drag.from, drag.to))))} –{" "}
-            {formatTime(new Date(toIso(day, Math.max(drag.from, drag.to))))}
+            {formatTime(new Date(toTimestamp(day, Math.min(drag.from, drag.to))))} –{" "}
+            {formatTime(new Date(toTimestamp(day, Math.max(drag.from, drag.to))))}
           </div>
         )}
       </div>

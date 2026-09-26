@@ -2,37 +2,36 @@
 
 import React, { useEffect, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
-import { Stop, Trip } from "../data";
+import type { NewStop } from "../types";
 import { TimeRange } from "./Calendar/CalendarGrid";
+import { dayKey, timeOfDay } from "./Calendar/calendarUtils";
+import { LatLng, mapsUrlForPlace } from "../stopUtils";
+
+export type StopDraft = Omit<NewStop, "itinerary_id" | "stop_order">;
 
 type PlaceResult = {
   id: string;
   name: string;
   address: string;
-  coordinates: { lat: number; lng: number };
-  mapsUrl: string;
+  coordinates: LatLng;
 };
 
 type Props = {
-  trip: Trip;
+  tripName: string;
+  // Where to search first; null searches without a location preference.
+  searchCenter: LatLng | null;
   initialRange: TimeRange;
-  onAdd: (stop: Stop) => void;
+  onAdd: (stop: StopDraft) => Promise<unknown>;
   onClose: () => void;
 };
 
-// "2026-09-26T09:00:00" -> ["2026-09-26", "09:00"]
-function splitIso(iso: string) {
-  return [iso.slice(0, 10), iso.slice(11, 16)] as const;
-}
-
-export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Props) {
-  const [initialDate, initialStart] = splitIso(initialRange.start);
-  const [, initialEnd] = splitIso(initialRange.end);
-
+export default function AddStopDialog({ tripName, searchCenter, initialRange, onAdd, onClose }: Props) {
   const [query, setQuery] = useState("");
-  const [date, setDate] = useState(initialDate);
-  const [start, setStart] = useState(initialStart);
-  const [end, setEnd] = useState(initialEnd);
+  const [date, setDate] = useState(() => dayKey(initialRange.start));
+  const [start, setStart] = useState(() => timeOfDay(initialRange.start));
+  const [end, setEnd] = useState(() => timeOfDay(initialRange.end));
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [chosen, setChosen] = useState<PlaceResult | null>(null);
   const [searching, setSearching] = useState(false);
@@ -54,9 +53,9 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
       const { Place } = await loadGoogleLibrary("places");
       const { places } = await Place.searchByText({
         textQuery: query,
-        locationBias: { center: trip.center, radius: 20000 },
+        ...(searchCenter && { locationBias: { center: searchCenter, radius: 20000 } }),
         maxResultCount: 5,
-        fields: ["id", "displayName", "formattedAddress", "location", "googleMapsURI"],
+        fields: ["id", "displayName", "formattedAddress", "location"],
       });
       const found = places
         .filter((place) => place.location)
@@ -65,7 +64,6 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
           name: place.displayName ?? query,
           address: place.formattedAddress ?? "",
           coordinates: place.location!.toJSON(),
-          mapsUrl: place.googleMapsURI ?? "",
         }));
       setResults(found);
       setChosen(found[0] ?? null);
@@ -80,19 +78,27 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
 
   const invalidTime = end <= start;
 
-  const add = () => {
+  const add = async () => {
     if (!chosen || invalidTime) return;
-    onAdd({
-      id: crypto.randomUUID(),
-      name: chosen.name,
-      start_time: `${date}T${start}:00`,
-      end_time: `${date}T${end}:00`,
-      google_map_links: chosen.mapsUrl,
-      coordinates: chosen.coordinates,
-      description: "",
-      image: "",
-      place_id: chosen.id,
-    });
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onAdd({
+        name: chosen.name,
+        // Inputs are local time; the DB stores UTC timestamps.
+        start_time: new Date(`${date}T${start}`).toISOString(),
+        end_time: new Date(`${date}T${end}`).toISOString(),
+        description: description.trim() || null,
+        google_maps_url: mapsUrlForPlace(chosen.name, chosen.id),
+        latitude: chosen.coordinates.lat,
+        longitude: chosen.coordinates.lng,
+        image_url: null,
+      });
+    } catch (err) {
+      console.error("Saving stop failed", err);
+      setError(err instanceof Error ? err.message : "Couldn't save this activity.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -114,7 +120,7 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search a place in ${trip.name}…`}
+            placeholder={`Search a place for ${tripName}…`}
             className="flex-1 rounded-lg border px-3 py-2 text-sm"
           />
           <button
@@ -163,6 +169,17 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
         </div>
         {invalidTime && <p className="text-sm text-red-600">End time must be after start time.</p>}
 
+        <label className="flex flex-col gap-1 text-sm">
+          Notes for the group
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Optional"
+            className="rounded-lg border px-3 py-2 resize-none"
+          />
+        </label>
+
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border px-4 py-2 text-sm">
             Cancel
@@ -170,10 +187,10 @@ export default function AddStopDialog({ trip, initialRange, onAdd, onClose }: Pr
           <button
             type="button"
             onClick={add}
-            disabled={!chosen || invalidTime}
+            disabled={!chosen || invalidTime || submitting}
             className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            Add to itinerary
+            {submitting ? "Adding…" : "Add to itinerary"}
           </button>
         </div>
       </div>

@@ -2,19 +2,21 @@ import React from "react";
 import Calendar from "./Calendar/Calendar";
 import { TimeRange } from "./Calendar/CalendarGrid";
 import { formatDay } from "./Calendar/calendarUtils";
-import { Stop } from "../data";
+import type { Stop } from "../types";
 
 type Props = {
   days: string[];
   day: string;
   onDayChange: (day: string) => void;
   stops: Stop[];
+  loading: boolean;
+  error: string | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: (range?: TimeRange) => void;
 };
 
-const Schedule = ({ days, day, onDayChange, stops, selectedId, onSelect, onAdd }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd }: Props) => {
   return (
     <div className="rounded-2xl border h-full w-full flex flex-col p-4 gap-3">
       <div className="flex items-center justify-between gap-4">
@@ -53,6 +55,8 @@ const Schedule = ({ days, day, onDayChange, stops, selectedId, onSelect, onAdd }
         <Calendar
           day={day}
           stops={stops}
+          loading={loading}
+          error={error}
           selectedId={selectedId}
           onSelect={onSelect}
           onCreateRange={onAdd}
