@@ -4,7 +4,7 @@
 
 Set `GEMINI_API_KEY` in `.env.local` or the deployment's server environment. The existing `GEMINI_API` name is also supported. Never prefix the key with `NEXT_PUBLIC_`.
 
-The default model is `gemini-3.8-flash`; override with `GEMINI_MODEL` if needed. Requests use the Gemini REST Generate Content API with a JSON Schema. API calls happen only when the traveler requests a review or an alternative, not when opening the panel. Gemini receives activity names, times, coordinates, preferences, available place candidates, travel/hour evidence and available weather. No database changes are made by the model.
+The default model is `gemini-3.1-flash-lite`; override with `GEMINI_MODEL` if needed. Requests use the Gemini REST Generate Content API with a JSON Schema. API calls happen only when the traveler requests a review or an alternative, not when opening the panel. Gemini receives activity names, times, coordinates, preferences, available place candidates, travel/hour evidence and available weather. No database changes are made by the model.
 
 The app's existing Google Maps JavaScript key must have Places and Routes access, as for the existing map and suggestions. Review still works with missing place evidence, but unknown routes can block acceptance. A failed Places search does not fabricate substitute places.
 

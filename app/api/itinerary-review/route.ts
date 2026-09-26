@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const stops = all.filter((s) => Date.parse(s.start_time) < Date.parse(body.dayEnd) && Date.parse(s.end_time) > Date.parse(body.dayStart));
     if (!stops.length || stops.length > 40) return Response.json({ error: "Choose a day with 1–40 activities." }, { status: 400 });
     const context = { day: body.day, timeZone: body.timeZone, dayStart: body.dayStart, dayEnd: body.dayEnd, lockedIds: body.lockedIds, preferences: body.preferences, feedback: body.feedback, refine: body.refine === true, stops: stops.map(({ id, name, start_time, end_time, latitude, longitude }) => ({ id, name, start_time, end_time, latitude, longitude })), candidates: body.candidates, evidence: body.evidence };
-    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
     const signal = AbortSignal.timeout(45_000);
     const generate = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
