@@ -34,3 +34,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Google Maps
+
+The itinerary page loads a basic Google Maps JavaScript map. Add this to `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+```
+
+Enable the Maps JavaScript API and billing in the key's Google Cloud project.
+Restrict this browser key to your website origins (including localhost for development)
+and to the Maps JavaScript API. Restart the dev server after setting the key.
+
+The map starts with a world view; itinerary locations, pins, and routes can be added later.
