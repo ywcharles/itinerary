@@ -109,6 +109,85 @@ const FIELDS = [
 // One Places request per gap and category per session.
 const cache = new Map<string, Promise<Suggestion[]>>();
 
+/** Search area: around the midpoint, wide enough to cover both ends of the gap. */
+function searchArea(gap: Gap) {
+  const { from, to } = gap;
+  const center = {
+    lat: (from.position.lat + to.position.lat) / 2,
+    lng: (from.position.lng + to.position.lng) / 2,
+  };
+  const radius = Math.min(3000, Math.max(1000, metersBetween(from.position, to.position) / 2 + 800));
+  return { center, radius };
+}
+
+/** Places that fit the gap (open, reachable, not planned yet), best first by rating and distance. */
+function rankForGap(places: google.maps.places.Place[], gap: Gap, category: Category, exclude: Set<string>) {
+  const { from, to } = gap;
+  const gapStart = new Date(gap.start).getTime();
+  const gapEnd = new Date(gap.end).getTime();
+  // Meals start at meal time (e.g. lunch not before 11:30), not as soon as you could get there.
+  const meal = category === "food" ? mealIn(gap) : undefined;
+
+  const ranked = places.flatMap((place) => {
+    if (!place.location || !place.displayName) return [];
+    if (place.businessStatus && place.businessStatus !== "OPERATIONAL") return [];
+    if (exclude.has(place.id) || exclude.has(place.displayName.toLowerCase())) return [];
+
+    const position = place.location.toJSON();
+    const walkIn = walkMinutes(from.position, position);
+    const walkOut = walkMinutes(position, to.position);
+    if (Math.min(walkIn, walkOut) > MAX_WALK_MINUTES) return [];
+    const latestEnd = roundDown(gapEnd - (gap.openEnd ? 0 : walkOut) * MINUTE);
+    const arrival = roundUp(gapStart + (gap.openStart ? 0 : walkIn) * MINUTE);
+    const atMealTime = meal ? roundUp(Math.max(arrival, meal.from)) : arrival;
+    // Fall back to arriving right away if waiting for meal time leaves too little room.
+    let start = latestEnd - atMealTime >= MIN_VISIT_MINUTES * MINUTE ? atMealTime : arrival;
+    let end = Math.min(start + CATEGORIES[category].minutes * MINUTE, latestEnd);
+    if (end - start < MIN_VISIT_MINUTES * MINUTE) return [];
+
+    const periods: Period[] = (place.regularOpeningHours?.periods ?? []).map((p) => ({
+      open: { day: p.open.day, hour: p.open.hour, minute: p.open.minute },
+      close: p.close ? { day: p.close.day, hour: p.close.hour, minute: p.close.minute } : null,
+    }));
+    const offset = place.utcOffsetMinutes ?? null;
+    let status = visitStatus(periods, new Date(start).toISOString(), new Date(end).toISOString(), offset);
+    while (status.kind === "closed" || status.kind === "closes-early") {
+      start += SLOT;
+      end = Math.min(start + CATEGORIES[category].minutes * MINUTE, latestEnd);
+      if (end - start < MIN_VISIT_MINUTES * MINUTE) return [];
+      status = visitStatus(periods, new Date(start).toISOString(), new Date(end).toISOString(), offset);
+    }
+    const startIso = new Date(start).toISOString();
+    const endIso = new Date(end).toISOString();
+
+    // Rating pulled toward 4.0 for places with few reviews; walking and unknown hours cost points.
+    const rating = place.rating ?? null;
+    const count = place.userRatingCount ?? 0;
+    const trusted = ((rating ?? 4) * count + 4 * 100) / (count + 100);
+    const score = trusted - 0.03 * (walkIn + walkOut) - (status.kind === "unknown" ? 0.3 : 0);
+
+    const weekday = offset != null ? placeLocal(startIso, offset).weekday : new Date(start).getDay();
+    const suggestion: Suggestion = {
+      placeId: place.id,
+      name: place.displayName,
+      position,
+      category: place.primaryTypeDisplayName ?? null,
+      price: place.priceLevel ? PRICE_LEVELS[place.priceLevel] ?? null : null,
+      rating,
+      ratingCount: place.userRatingCount ?? null,
+      photoUrl: place.photos?.[0]?.getURI({ maxHeight: 200 }) ?? null,
+      hours: hoursForWeekday(place.regularOpeningHours?.weekdayDescriptions ?? [], weekday),
+      walk: walkIn <= walkOut ? { minutes: walkIn, near: from.name } : { minutes: walkOut, near: to.name },
+      start: startIso,
+      end: endIso,
+    };
+    return [{ suggestion, score }];
+  });
+
+
+  return ranked.sort((a, b) => b.score - a.score).map(({ suggestion }) => suggestion);
+}
+
 /**
  * Up to `limit` ideas for the gap. `exclude` holds place ids and lowercase names already in the trip.
  * The cache key includes the gap's times and positions, so moving an activity gives fresh ideas.
@@ -120,91 +199,113 @@ export function fetchSuggestions(gap: Gap, category: Category, exclude: Set<stri
 
   const request = (async () => {
     const { Place } = await loadGoogleLibrary("places");
-    const { from, to } = gap;
-    const center = {
-      lat: (from.position.lat + to.position.lat) / 2,
-      lng: (from.position.lng + to.position.lng) / 2,
-    };
-    // Search around the midpoint, wide enough to cover both ends.
-    const radius = Math.min(3000, Math.max(1000, metersBetween(from.position, to.position) / 2 + 800));
     const { places } = await Place.searchNearby({
-      locationRestriction: { center, radius },
+      locationRestriction: searchArea(gap),
       includedPrimaryTypes: CATEGORIES[category].types,
       rankPreference: "POPULARITY",
       maxResultCount: 20,
       fields: FIELDS,
     });
-
-    const gapStart = new Date(gap.start).getTime();
-    const gapEnd = new Date(gap.end).getTime();
-    // Meals start at meal time (e.g. lunch not before 11:30), not as soon as you could get there.
-    const meal = category === "food" ? mealIn(gap) : undefined;
-
-    const ranked = places.flatMap((place) => {
-      if (!place.location || !place.displayName) return [];
-      if (place.businessStatus && place.businessStatus !== "OPERATIONAL") return [];
-      if (exclude.has(place.id) || exclude.has(place.displayName.toLowerCase())) return [];
-
-      const position = place.location.toJSON();
-      const walkIn = walkMinutes(from.position, position);
-      const walkOut = walkMinutes(position, to.position);
-      if (Math.min(walkIn, walkOut) > MAX_WALK_MINUTES) return [];
-      const latestEnd = roundDown(gapEnd - (gap.openEnd ? 0 : walkOut) * MINUTE);
-      const arrival = roundUp(gapStart + (gap.openStart ? 0 : walkIn) * MINUTE);
-      const atMealTime = meal ? roundUp(Math.max(arrival, meal.from)) : arrival;
-      // Fall back to arriving right away if waiting for meal time leaves too little room.
-      let start = latestEnd - atMealTime >= MIN_VISIT_MINUTES * MINUTE ? atMealTime : arrival;
-      let end = Math.min(start + CATEGORIES[category].minutes * MINUTE, latestEnd);
-      if (end - start < MIN_VISIT_MINUTES * MINUTE) return [];
-
-      const periods: Period[] = (place.regularOpeningHours?.periods ?? []).map((p) => ({
-        open: { day: p.open.day, hour: p.open.hour, minute: p.open.minute },
-        close: p.close ? { day: p.close.day, hour: p.close.hour, minute: p.close.minute } : null,
-      }));
-      const offset = place.utcOffsetMinutes ?? null;
-      let status = visitStatus(periods, new Date(start).toISOString(), new Date(end).toISOString(), offset);
-      while (status.kind === "closed" || status.kind === "closes-early") {
-        start += SLOT;
-        end = Math.min(start + CATEGORIES[category].minutes * MINUTE, latestEnd);
-        if (end - start < MIN_VISIT_MINUTES * MINUTE) return [];
-        status = visitStatus(periods, new Date(start).toISOString(), new Date(end).toISOString(), offset);
-      }
-      const startIso = new Date(start).toISOString();
-      const endIso = new Date(end).toISOString();
-
-      // Rating pulled toward 4.0 for places with few reviews; walking and unknown hours cost points.
-      const rating = place.rating ?? null;
-      const count = place.userRatingCount ?? 0;
-      const trusted = ((rating ?? 4) * count + 4 * 100) / (count + 100);
-      const score = trusted - 0.03 * (walkIn + walkOut) - (status.kind === "unknown" ? 0.3 : 0);
-
-      const weekday = offset != null ? placeLocal(startIso, offset).weekday : new Date(start).getDay();
-      const suggestion: Suggestion = {
-        placeId: place.id,
-        name: place.displayName,
-        position,
-        category: place.primaryTypeDisplayName ?? null,
-        price: place.priceLevel ? PRICE_LEVELS[place.priceLevel] ?? null : null,
-        rating,
-        ratingCount: place.userRatingCount ?? null,
-        photoUrl: place.photos?.[0]?.getURI({ maxHeight: 200 }) ?? null,
-        hours: hoursForWeekday(place.regularOpeningHours?.weekdayDescriptions ?? [], weekday),
-        walk: walkIn <= walkOut ? { minutes: walkIn, near: from.name } : { minutes: walkOut, near: to.name },
-        start: startIso,
-        end: endIso,
-      };
-      return [{ suggestion, score }];
-    });
-
-    return ranked
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(({ suggestion }) => suggestion);
+    return rankForGap(places, gap, category, exclude).slice(0, limit);
   })();
 
   // Drop failed lookups from the cache so they are retried next time.
   request.catch(() => cache.delete(key));
   if (cache.size >= 100) cache.delete(cache.keys().next().value!);
   cache.set(key, request);
+  return request;
+}
+
+// Added to the wish so a text search stays in the chosen category ("sushi" -> "sushi restaurant").
+const SEARCH_NOUN: Record<Category, string> = {
+  food: "restaurant",
+  coffee: "cafe",
+  sights: "attraction",
+  outdoors: "park",
+  shopping: "shop",
+  history: "historic site",
+};
+
+export type PersonalizedIdea = Suggestion & { reason?: string; topPick?: boolean };
+
+export type PersonalizedIdeas = {
+  ideas: PersonalizedIdea[];
+  // Set when the AI found nothing that fits, e.g. "No sushi places nearby".
+  note: string | null;
+  // False when the AI ranking failed and the ideas are only rule-ranked matches.
+  ranked: boolean;
+};
+
+const personalizedCache = new Map<string, Promise<PersonalizedIdeas>>();
+
+/**
+ * Ideas matching a short wish ("sushi", "quiet place to read"): Google text search finds real matches
+ * that fit the gap, then the server asks Gemini to pick and explain the best ones (/api/ideas/rank).
+ */
+export function fetchPersonalized(
+  gap: Gap,
+  category: Category,
+  wish: string,
+  exclude: Set<string>,
+): Promise<PersonalizedIdeas> {
+  const key = JSON.stringify([gap, category, wish, [...exclude].sort()]);
+  const cached = personalizedCache.get(key);
+  if (cached) return cached;
+
+  const request = (async (): Promise<PersonalizedIdeas> => {
+    const { Place } = await loadGoogleLibrary("places");
+    const { places } = await Place.searchByText({
+      textQuery: `${wish} ${SEARCH_NOUN[category]}`,
+      locationBias: searchArea(gap),
+      maxResultCount: 20,
+      fields: FIELDS,
+    });
+    const candidates = rankForGap(places, gap, category, exclude).slice(0, 8);
+    if (candidates.length === 0) return { ideas: [], note: null, ranked: true };
+
+    const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    try {
+      const res = await fetch("/api/ideas/rank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          wish,
+          category,
+          slot: `${time(gap.start)} – ${time(gap.end)}`,
+          candidates: candidates.map((c) => ({
+            id: c.placeId,
+            name: c.name,
+            type: c.category,
+            rating: c.rating,
+            ratingCount: c.ratingCount,
+            price: c.price,
+            walkMinutes: c.walk.minutes,
+            hours: c.hours,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error(`Ranking failed (${res.status})`);
+      const { topPickId, picks, note } = (await res.json()) as {
+        topPickId: string | null;
+        picks: { id: string; reason: string }[];
+        note: string | null;
+      };
+      const byId = new Map(candidates.map((c) => [c.placeId, c]));
+      const ideas = picks.flatMap(({ id, reason }) => {
+        const idea = byId.get(id);
+        return idea ? [{ ...idea, reason, topPick: id === topPickId }] : [];
+      });
+      return { ideas, note, ranked: true };
+    } catch (error) {
+      // Without the AI ranking, still show the best matches from the search, and try the ranking again next time.
+      console.warn("Personalized ranking unavailable", error);
+      personalizedCache.delete(key);
+      return { ideas: candidates.slice(0, 4), note: null, ranked: false };
+    }
+  })();
+
+  request.catch(() => personalizedCache.delete(key));
+  if (personalizedCache.size >= 50) personalizedCache.delete(personalizedCache.keys().next().value!);
+  personalizedCache.set(key, request);
   return request;
 }

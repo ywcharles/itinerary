@@ -3,6 +3,7 @@ import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 import CreateTripForm from "./components/start/CreateTripForm";
 import JoinTripForm from "./components/start/JoinTripForm";
 import RecentTrips from "./components/start/RecentTrips";
+import TravelCollage from "./components/TravelCollage";
 
 // A trip that's always there to try the planner with.
 const EXAMPLE_TRIP = "/itinerary/toronto-4-days";
@@ -16,7 +17,7 @@ const steps = [
 const features = [
   { icon: "🗓️", title: "A shared calendar", body: "Drag activities into time slots and resize them, like in Google Calendar." },
   { icon: "🗺️", title: "The route on the map", body: "Stops are pinned in order, with the walking or driving time between them." },
-  { icon: "✨", title: "Ideas for free time", body: "Got a gap? Get open places nearby that fit it, or ask for “sushi”." },
+  { icon: "✨", title: "Ideas & AI review", body: "Fill gaps with open places nearby, or let Gemini review your day and suggest changes." },
   { icon: "📝", title: "Notes & details", body: "Opening hours, phone numbers for reservations, and notes for everyone." },
 ];
 
@@ -92,23 +93,27 @@ export default function Home() {
             </Link>
           </p>
         </div>
-        <PlannerPreview />
+        <TravelCollage />
       </section>
 
       <RecentTrips title="Pick up where you left off" />
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {steps.map(({ title, body }, index) => (
-          <div key={title} className="flex gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
-              {index + 1}
-            </span>
-            <div>
-              <h2 className="font-semibold">{title}</h2>
-              <p className="mt-0.5 text-sm text-muted">{body}</p>
+      <section className="grid items-center gap-10 lg:grid-cols-[1fr_1.1fr]">
+        <div className="flex flex-col gap-6">
+          <h2 className="text-2xl font-semibold tracking-tight">Your whole day at a glance</h2>
+          {steps.map(({ title, body }, index) => (
+            <div key={title} className="flex gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
+                {index + 1}
+              </span>
+              <div>
+                <h3 className="font-semibold">{title}</h3>
+                <p className="mt-0.5 text-sm text-muted">{body}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+        <PlannerPreview />
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

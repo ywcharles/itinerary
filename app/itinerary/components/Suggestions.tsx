@@ -4,9 +4,11 @@ import React, { useEffect, useState } from "react";
 import {
   CATEGORIES,
   defaultCategory,
+  fetchPersonalized,
   fetchSuggestions,
   type Category,
   type Gap,
+  type PersonalizedIdea,
   type Suggestion,
 } from "@/lib/suggestions";
 import { formatTime } from "./Calendar/calendarUtils";
@@ -22,21 +24,41 @@ type Props = {
 
 const timeRange = (start: string, end: string) => `${formatTime(new Date(start))} – ${formatTime(new Date(end))}`;
 
+const WISH_EXAMPLES: Record<Category, string> = {
+  food: "e.g. sushi, vegan, cheap eats",
+  coffee: "e.g. matcha, quiet place to read",
+  sights: "e.g. modern art, great views",
+  outdoors: "e.g. by the water, dog-friendly",
+  shopping: "e.g. vintage, local designers",
+  history: "e.g. castles, war history",
+};
+
+// Tabs stay few on purpose; anything more specific ("vintage shops", "castles") goes through Personalize.
+const TABS: Category[] = ["food", "coffee", "sights", "outdoors"];
+
+type Loaded = { ideas: PersonalizedIdea[] | null; note: string | null; ranked: boolean };
+
 export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose }: Props) {
   const [category, setCategory] = useState<Category>(() => defaultCategory(gap, freeMinutes));
+  // The wish being typed, and the one the shown ideas are personalized for.
+  const [draft, setDraft] = useState("");
+  const [wish, setWish] = useState("");
   // Results are tagged with what they were fetched for, so stale ones never show.
-  const [result, setResult] = useState<{ key: string; ideas: Suggestion[] | null } | null>(null);
+  const [result, setResult] = useState<({ key: string } & Loaded) | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
-  const key = JSON.stringify([gap, category, [...exclude].sort()]);
+  const key = JSON.stringify([gap, category, wish, [...exclude].sort()]);
 
   useEffect(() => {
     let active = true;
-    fetchSuggestions(gap, category, exclude)
-      .then((ideas) => active && setResult({ key, ideas }))
+    const load: Promise<Omit<Loaded, "ideas"> & { ideas: PersonalizedIdea[] }> = wish
+      ? fetchPersonalized(gap, category, wish, exclude)
+      : fetchSuggestions(gap, category, exclude).then((ideas) => ({ ideas, note: null, ranked: true }));
+    load
+      .then((data) => active && setResult({ key, ...data }))
       .catch((error) => {
         console.error("Loading ideas failed", error);
-        if (active) setResult({ key, ideas: null });
+        if (active) setResult({ key, ideas: null, note: null, ranked: true });
       });
     return () => { active = false; };
     // `key` includes locations and exclusions, so collaborative edits invalidate results.
@@ -50,6 +72,18 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
   }, [onClose]);
 
   const current = result?.key === key ? result : null;
+
+  const switchCategory = (c: Category) => {
+    // A wish like "sushi" belongs to one category; start fresh in the next.
+    setCategory(c);
+    setWish("");
+    setDraft("");
+  };
+
+  const personalize = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWish(draft.trim().slice(0, 120));
+  };
 
   const add = async (idea: Suggestion) => {
     setAdding(idea.placeId);
@@ -65,13 +99,15 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
-      <div className="flex items-start justify-between gap-2 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold leading-tight">Ideas for {timeRange(gap.start, gap.end)}</h2>
-          <p className="truncate text-xs text-muted">
-            Between {gap.from.name} and {gap.to.name}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2">
+        {/* One line: the time plus where the gap is, cut off with "…" when too long. */}
+        <h2
+          className="min-w-0 truncate text-sm font-semibold"
+          title={`Between ${gap.from.name} and ${gap.to.name}`}
+        >
+          Ideas for {timeRange(gap.start, gap.end)}
+          <span className="font-normal text-muted"> · between {gap.from.name} and {gap.to.name}</span>
+        </h2>
         <button
           type="button"
           onClick={onClose}
@@ -82,12 +118,13 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
         </button>
       </div>
 
-      <div className="flex gap-1.5 px-4 pt-3 max-md:flex-wrap">
-        {(Object.keys(CATEGORIES) as Category[]).map((c) => (
+      {/* Category chips and the personalize field share one row (wrapping when there's no room). */}
+      <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5">
+        {TABS.map((c) => (
           <button
             key={c}
             type="button"
-            onClick={() => setCategory(c)}
+            onClick={() => switchCategory(c)}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
               c === category ? "border-primary bg-primary text-white" : "border-line text-muted hover:text-ink"
             }`}
@@ -95,10 +132,48 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
             {CATEGORIES[c].label}
           </button>
         ))}
+
+        <form onSubmit={personalize} className="ml-1 flex min-w-[220px] flex-1 gap-1.5 max-md:ml-0 max-md:basis-full">
+          <div className="relative min-w-0 flex-1">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              maxLength={120}
+              placeholder={`✨ Personalize: ${WISH_EXAMPLES[category]}`}
+              aria-label="Personalize ideas"
+              className="w-full rounded-lg border border-line bg-surface py-1 pl-2.5 pr-7 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            {(draft || wish) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft("");
+                  setWish("");
+                }}
+                aria-label="Clear personalization"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 text-xs text-muted hover:text-ink"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={!draft.trim() || draft.trim() === wish}
+            className="shrink-0 rounded-lg border border-line px-2.5 text-xs font-medium transition-colors hover:bg-canvas disabled:opacity-40"
+          >
+            Go
+          </button>
+        </form>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {addError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{addError}</p>}
+        {current?.note && <p className="mb-2 text-sm text-muted">{current.note}</p>}
+        {current && current.ideas && !current.ranked && (
+          <p className="mb-2 text-xs text-muted">Showing matches for “{wish}” (personal ranking is unavailable right now).</p>
+        )}
+        {!current && wish && <p className="mb-2 text-xs text-muted">Finding the best matches for “{wish}”…</p>}
 
         {!current && (
           <ul className="flex flex-col gap-2" aria-label="Loading ideas">
@@ -112,16 +187,21 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
           <p className="text-sm text-red-600 dark:text-red-400">Couldn&apos;t load ideas right now.</p>
         )}
 
-        {current?.ideas?.length === 0 && (
+        {current?.ideas?.length === 0 && !current.note && (
           <p className="text-sm text-muted">
-            Nothing open nearby fits this gap. Try another category.
+            {wish ? `No open places matching “${wish}” fit this gap.` : "Nothing open nearby fits this gap."} Try another category.
           </p>
         )}
 
         {current?.ideas && current.ideas.length > 0 && (
           <ul className="flex flex-col gap-2">
             {current.ideas.map((idea) => (
-              <li key={idea.placeId} className="flex items-center gap-3 rounded-xl border border-line p-2 max-md:flex-wrap">
+              <li
+                key={idea.placeId}
+                className={`flex items-center gap-3 rounded-xl border p-2 max-md:flex-wrap ${
+                  idea.topPick ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-line"
+                }`}
+              >
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-canvas">
                   {idea.photoUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -129,7 +209,15 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
                   )}
                 </div>
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="truncate font-medium">{idea.name}</p>
+                  <p className="flex items-center gap-1.5 font-medium">
+                    <span className="truncate">{idea.name}</span>
+                    {idea.topPick && (
+                      <span className="shrink-0 rounded-full bg-primary px-1.5 py-px text-[11px] font-semibold text-white">
+                        Top pick
+                      </span>
+                    )}
+                  </p>
+                  {idea.reason && <p className="text-xs text-ink">{idea.reason}</p>}
                   <p className="truncate text-xs text-muted">
                     {[
                       idea.rating != null &&
