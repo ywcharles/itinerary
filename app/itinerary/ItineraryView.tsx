@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AddStopDialog, { StopDraft } from "./components/AddStopDialog";
 import { TimeRange } from "./components/Calendar/CalendarGrid";
 import { dayKey, formatDay, toTimestamp } from "./components/Calendar/calendarUtils";
@@ -16,7 +16,7 @@ type Props = {
 };
 
 export default function ItineraryView({ itineraryId, tripName }: Props) {
-  const { stops, loading, error, addStop, updateStop } = useStops(itineraryId);
+  const { stops, loading, error, addStop, updateStop, removeStop } = useStops(itineraryId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // null = not chosen yet; falls back to the first day with stops (they load asynchronously).
   const [chosenDay, setChosenDay] = useState<string | null>(null);
@@ -49,6 +49,38 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     (id: string, description: string) => updateStop(id, { description: description || null }),
     [updateStop],
   );
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<{ stopId: string; message: string } | null>(null);
+
+  const deleteStop = useCallback(async (id: string) => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await removeStop(id);
+      setSelectedId((current) => (current === id ? null : current));
+    } catch (err) {
+      console.error("Deleting stop failed", err);
+      setDeleteError({ stopId: id, message: err instanceof Error ? err.message : "Couldn't delete this activity." });
+    } finally {
+      setDeleting(false);
+    }
+  }, [removeStop]);
+
+  // Backspace/Delete removes the selected activity, unless the user is typing somewhere.
+  const selectedStopId = selectedStop?.id ?? null;
+  useEffect(() => {
+    if (!selectedStopId || addRange) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") return;
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+      e.preventDefault();
+      if (!deleting) deleteStop(selectedStopId);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedStopId, addRange, deleting, deleteStop]);
 
   const openAdd = (range?: TimeRange) => {
     setAddRange(range ?? { start: toTimestamp(day, 12 * 60), end: toTimestamp(day, 13 * 60) });
@@ -92,7 +124,13 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             <Maps stops={dayStops} selectedId={selectedStop?.id ?? null} onSelect={setSelectedId} />
           </div>
           <div className="flex-[2] min-h-0">
-            <Details stop={selectedStop} onDescriptionChange={updateDescription} />
+            <Details
+              stop={selectedStop}
+              onDescriptionChange={updateDescription}
+              onDelete={deleteStop}
+              deleting={deleting}
+              deleteError={deleteError && deleteError.stopId === selectedStop?.id ? deleteError.message : null}
+            />
           </div>
         </div>
       </div>

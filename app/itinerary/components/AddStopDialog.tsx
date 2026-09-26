@@ -6,15 +6,72 @@ import type { NewStop } from "../types";
 import { TimeRange } from "./Calendar/CalendarGrid";
 import { dayKey, timeOfDay } from "./Calendar/calendarUtils";
 import { LatLng, mapsUrlForPlace } from "../stopUtils";
+import { asMapsUrl, isShortMapsLink, parseMapsUrl } from "@/lib/mapsLink";
 
 export type StopDraft = Omit<NewStop, "itinerary_id" | "stop_order">;
 
 type PlaceResult = {
-  id: string;
+  // null for a dropped pin that isn't a Google place
+  id: string | null;
   name: string;
   address: string;
   coordinates: LatLng;
+  // Link to store; defaults to a Maps URL built from the place id.
+  mapsUrl?: string;
 };
+
+const PLACE_FIELDS = ["id", "displayName", "formattedAddress", "location"];
+
+function toResult(place: google.maps.places.Place, fallbackName: string): PlaceResult | null {
+  if (!place.location) return null;
+  return {
+    id: place.id,
+    name: place.displayName ?? fallbackName,
+    address: place.formattedAddress ?? "",
+    coordinates: place.location.toJSON(),
+  };
+}
+
+/** Finds the place a pasted Google Maps link points to. */
+async function resolveMapsLink(link: URL, searchCenter: LatLng | null): Promise<PlaceResult[]> {
+  let url = link;
+  if (isShortMapsLink(link)) {
+    const res = await fetch(`/api/resolve-maps-link?url=${encodeURIComponent(link.href)}`);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? "Couldn't open this link.");
+    url = new URL(body.url);
+  }
+
+  const { placeId, name, coordinates, query } = parseMapsUrl(url);
+  const { Place } = await loadGoogleLibrary("places");
+
+  if (placeId) {
+    const place = new Place({ id: placeId });
+    await place.fetchFields({ fields: PLACE_FIELDS });
+    const result = toResult(place, name ?? query ?? "Pinned place");
+    return result ? [result] : [];
+  }
+
+  const text = name ?? query;
+  if (text) {
+    // A place link carries the exact pin, so only accept matches right next to it.
+    const { places } = await Place.searchByText({
+      textQuery: text,
+      ...(coordinates
+        ? { locationBias: { center: coordinates, radius: 200 } }
+        : searchCenter && { locationBias: { center: searchCenter, radius: 20000 } }),
+      maxResultCount: coordinates ? 1 : 5,
+      fields: PLACE_FIELDS,
+    });
+    const found = places.flatMap((place) => toResult(place, text) ?? []);
+    if (found.length > 0) return found;
+  }
+
+  // No matching Google place: keep the pin itself so it still shows on the map.
+  return coordinates
+    ? [{ id: null, name: text ?? "Pinned location", address: "From Google Maps link", coordinates, mapsUrl: link.href }]
+    : [];
+}
 
 type Props = {
   tripName: string;
@@ -49,28 +106,29 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
     setSearching(true);
     setError(null);
     setChosen(null);
+    const link = asMapsUrl(query);
     try {
-      const { Place } = await loadGoogleLibrary("places");
-      const { places } = await Place.searchByText({
-        textQuery: query,
-        ...(searchCenter && { locationBias: { center: searchCenter, radius: 20000 } }),
-        maxResultCount: 5,
-        fields: ["id", "displayName", "formattedAddress", "location"],
-      });
-      const found = places
-        .filter((place) => place.location)
-        .map((place) => ({
-          id: place.id,
-          name: place.displayName ?? query,
-          address: place.formattedAddress ?? "",
-          coordinates: place.location!.toJSON(),
-        }));
+      let found: PlaceResult[];
+      if (link) {
+        found = await resolveMapsLink(link, searchCenter);
+      } else {
+        const { Place } = await loadGoogleLibrary("places");
+        const { places } = await Place.searchByText({
+          textQuery: query,
+          ...(searchCenter && { locationBias: { center: searchCenter, radius: 20000 } }),
+          maxResultCount: 5,
+          fields: PLACE_FIELDS,
+        });
+        found = places.flatMap((place) => toResult(place, query) ?? []);
+      }
       setResults(found);
       setChosen(found[0] ?? null);
-      if (found.length === 0) setError("No places found. Try a different name.");
+      if (found.length === 0) {
+        setError(link ? "Couldn't find a place in this link." : "No places found. Try a different name.");
+      }
     } catch (err) {
       console.error("Place search failed", err);
-      setError("Couldn't search Google Places.");
+      setError(link ? "Couldn't read this Google Maps link." : "Couldn't search Google Places.");
     } finally {
       setSearching(false);
     }
@@ -89,7 +147,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
         start_time: new Date(`${date}T${start}`).toISOString(),
         end_time: new Date(`${date}T${end}`).toISOString(),
         description: description.trim() || null,
-        google_maps_url: mapsUrlForPlace(chosen.name, chosen.id),
+        google_maps_url: chosen.mapsUrl ?? (chosen.id ? mapsUrlForPlace(chosen.name, chosen.id) : null),
         latitude: chosen.coordinates.lat,
         longitude: chosen.coordinates.lng,
         image_url: null,
@@ -120,7 +178,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search a place for ${tripName}…`}
+            placeholder={`Search a place for ${tripName} or paste a Google Maps link…`}
             className="flex-1 rounded-lg border px-3 py-2 text-sm"
           />
           <button
@@ -128,21 +186,24 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
             disabled={searching || !query.trim()}
             className="rounded-lg bg-primary px-3 py-2 text-sm text-white disabled:opacity-50"
           >
-            {searching ? "Searching…" : "Search"}
+            {searching ? "Searching…" : asMapsUrl(query) ? "Use link" : "Search"}
           </button>
         </form>
+        <p className="-mt-2 text-xs text-gray-500">
+          Tip: in Google Maps, tap Share on a place and paste the link here.
+        </p>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         {results.length > 0 && (
           <ul className="flex flex-col gap-1 max-h-48 overflow-y-auto">
             {results.map((result) => (
-              <li key={result.id}>
+              <li key={result.id ?? `${result.coordinates.lat},${result.coordinates.lng}`}>
                 <button
                   type="button"
                   onClick={() => setChosen(result)}
                   className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                    chosen?.id === result.id ? "border-primary bg-primary/10" : "hover:bg-gray-50"
+                    chosen === result ? "border-primary bg-primary/10" : "hover:bg-gray-50"
                   }`}
                 >
                   <span className="font-medium">{result.name}</span>

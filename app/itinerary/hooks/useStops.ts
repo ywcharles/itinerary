@@ -111,5 +111,24 @@ export function useStops(itineraryId: string) {
     [],
   );
 
-  return { stops, loading, error, addStop, updateStop, refetch: fetchStops };
+  const removeStop = useCallback(
+    async (id: string) => {
+      const { data, error } = await supabase
+        .from("stops")
+        .delete()
+        .eq("id", id)
+        .select("id");
+      if (error) throw error;
+      // Row-level security silently deletes nothing when deleting isn't allowed.
+      if (!data?.length) {
+        throw new Error("Couldn't delete: the database doesn't allow deleting activities yet.");
+      }
+
+      // The realtime DELETE event removes it for everyone else.
+      setStops((current) => current.filter((s) => s.id !== id));
+    },
+    [],
+  );
+
+  return { stops, loading, error, addStop, updateStop, removeStop, refetch: fetchStops };
 }

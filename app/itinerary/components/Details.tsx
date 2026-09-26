@@ -148,9 +148,12 @@ function NotesField({ value, onSave }: NotesProps) {
 type Props = {
   stop: Stop | null;
   onDescriptionChange: (id: string, description: string) => Promise<void>;
+  onDelete: (id: string) => void;
+  deleting: boolean;
+  deleteError: string | null;
 };
 
-const Details = ({ stop, onDescriptionChange }: Props) => {
+const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }: Props) => {
   // The lookup result is tagged with the stop it belongs to, so a stale result never shows for a newly selected stop.
   const [result, setResult] = useState<{ stopId: string; place: PlaceInfo | null; failed: boolean } | null>(null);
 
@@ -204,7 +207,19 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
 
       <div className="p-3 flex flex-col gap-2">
         <div>
-          <h2 className="text-base font-semibold">{place?.name ?? stop.name}</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-base font-semibold">{place?.name ?? stop.name}</h2>
+            <button
+              type="button"
+              onClick={() => onDelete(stop.id)}
+              disabled={deleting}
+              title="Delete activity (Backspace)"
+              className="shrink-0 rounded-lg border px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+          {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
           {place?.address && <p className="text-sm text-gray-500">{place.address}</p>}
           {current && !place && !current.failed && (
             <p className="text-sm text-gray-500">No location set for this activity.</p>
