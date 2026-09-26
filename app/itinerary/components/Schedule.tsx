@@ -1,22 +1,62 @@
 import React from "react";
 import Calendar from "./Calendar/Calendar";
+import { TimeRange } from "./Calendar/CalendarGrid";
+import { formatDay } from "./Calendar/calendarUtils";
 import { Stop } from "../data";
 
 type Props = {
+  days: string[];
+  day: string;
+  onDayChange: (day: string) => void;
   stops: Stop[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onAdd: (range?: TimeRange) => void;
 };
 
-const Schedule = ({ stops, selectedId, onSelect }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, selectedId, onSelect, onAdd }: Props) => {
   return (
-    <div className="rounded-2xl border h-full w-full flex flex-col p-4">
-      <button className="rounded-xl bg-secondary w-full h-10 flex justify-center items-center">
-        Add
-      </button>
+    <div className="rounded-2xl border h-full w-full flex flex-col p-4 gap-3">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold">{formatDay(day)}</h2>
+        <button
+          type="button"
+          onClick={() => onAdd()}
+          className="rounded-xl bg-secondary px-4 h-10 text-white font-medium hover:bg-secondary/90"
+        >
+          + Add activity
+        </button>
+      </div>
 
-      <div className="w-full flex-1 mt-4 min-h-0">
-        <Calendar stops={stops} selectedId={selectedId} onSelect={onSelect} />
+      {days.length > 1 && (
+        <div role="tablist" aria-label="Trip days" className="flex gap-2 overflow-x-auto">
+          {days.map((d, index) => (
+            <button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={d === day}
+              onClick={() => onDayChange(d)}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm border ${
+                d === day ? "bg-primary text-white border-primary" : "bg-white hover:bg-gray-50"
+              }`}
+            >
+              Day {index + 1} · {formatDay(d, "short")}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">Drag on an empty time slot to plan something there.</p>
+
+      <div className="w-full flex-1 min-h-0">
+        <Calendar
+          day={day}
+          stops={stops}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onCreateRange={onAdd}
+        />
       </div>
     </div>
   );

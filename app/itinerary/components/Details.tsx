@@ -24,22 +24,29 @@ function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
   if (cached) return cached;
 
   const request = loadGoogleLibrary("places").then(async ({ Place }) => {
-    const { places } = await Place.searchByText({
-      textQuery: stop.name,
-      locationBias: { center: stop.coordinates, radius: 1000 },
-      maxResultCount: 1,
-      fields: [
-        "displayName",
-        "formattedAddress",
-        "photos",
-        "regularOpeningHours",
-        "rating",
-        "userRatingCount",
-        "websiteURI",
-        "googleMapsURI",
-      ],
-    });
-    const place = places[0];
+    const fields = [
+      "displayName",
+      "formattedAddress",
+      "photos",
+      "regularOpeningHours",
+      "rating",
+      "userRatingCount",
+      "websiteURI",
+      "googleMapsURI",
+    ];
+    let place: google.maps.places.Place | undefined;
+    if (stop.place_id) {
+      place = new Place({ id: stop.place_id });
+      await place.fetchFields({ fields });
+    } else {
+      const { places } = await Place.searchByText({
+        textQuery: stop.name,
+        locationBias: { center: stop.coordinates, radius: 1000 },
+        maxResultCount: 1,
+        fields,
+      });
+      place = places[0];
+    }
     if (!place) return null;
 
     const photo = place.photos?.[0];
@@ -94,15 +101,15 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
 
   if (!stop) {
     return (
-      <div className="rounded-2xl bg-secondary h-1/2 w-full flex justify-center items-center text-white">
+      <div className="rounded-2xl bg-secondary h-full w-full flex justify-center items-center text-white">
         Click an activity to see its details
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border h-1/2 w-full overflow-auto">
-      <div className="relative h-40 w-full bg-secondary">
+    <div className="rounded-2xl border h-full w-full overflow-y-auto">
+      <div className="relative h-32 w-full shrink-0 bg-secondary">
         {place?.photoUrl && (
           // Google photo URLs are signed and short-lived, so next/image optimization isn't a fit.
           // eslint-disable-next-line @next/next/no-img-element
@@ -130,6 +137,17 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
           )}
         </div>
 
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">Notes for the group</span>
+          <textarea
+            value={stop.description}
+            onChange={(e) => onDescriptionChange(stop.id, e.target.value)}
+            placeholder="e.g. Book a table in advance, meet at the entrance…"
+            rows={3}
+            className="rounded-lg border p-2 text-sm resize-y"
+          />
+        </label>
+
         {status === "error" && (
           <p className="text-sm text-red-600">Couldn&apos;t load place info from Google.</p>
         )}
@@ -156,16 +174,6 @@ const Details = ({ stop, onDescriptionChange }: Props) => {
           </div>
         )}
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">Notes for the group</span>
-          <textarea
-            value={stop.description}
-            onChange={(e) => onDescriptionChange(stop.id, e.target.value)}
-            placeholder="e.g. Book a table in advance, meet at the entrance…"
-            rows={3}
-            className="rounded-lg border p-2 text-sm resize-y"
-          />
-        </label>
       </div>
     </div>
   );

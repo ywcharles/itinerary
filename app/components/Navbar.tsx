@@ -21,7 +21,7 @@ export default function Navbar() {
           href="/"
           className="rounded text-xl font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
         >
-          <span className="text-secondary"></span>itinerary
+          <span className="text-primary">Itin</span><span className="text-secondary">erary</span>
         </Link>
         <ul className="flex flex-wrap items-center gap-2">
           {links.map(({ href, label }) => {
