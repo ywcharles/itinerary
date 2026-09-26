@@ -3,46 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
-  { href: "/itinerary", label: "Create Itinerary" },
-];
-
 export default function Navbar() {
   const pathname = usePathname();
-
-  return (
-    <header className="border-b border-black/15 bg-white
-    ">
-      <nav
-        aria-label="Main navigation"
-        className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4"
-      >
-        <Link
-          href="/"
-          className="rounded text-xl font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
-        >
-          <span className="text-primary">Itin</span><span className="text-secondary">erary</span>
-        </Link>
-        <ul className="flex flex-wrap items-center gap-2">
-          {links.map(({ href, label }) => {
-            const isActive =
-              pathname === href ||
-              (href !== "/" && pathname.startsWith(`${href}/`));
-
-            return (
-              <li key={label}>
-                <Link
-                  href={href}
-                  aria-current={isActive ? "page" : undefined}
-                  className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
-                >
-                  {label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    </header>
-  );
+  const home = pathname === "/";
+  return <header className={`site-header ${home ? "site-header-home" : ""}`}>
+    {(home || pathname === "/itinerary") && <a href="#main-content" className="skip-link">Skip to content</a>}
+    <nav aria-label="Main navigation" className="site-nav">
+      <Link href="/" className="site-logo" aria-label="Itinerary home">itin<span>erary</span><i aria-hidden="true">↗</i></Link>
+      {home && <div className="site-nav-links"><a href="#the-story">How it works</a><a href="#questions">A few questions</a></div>}
+      <Link href="/itinerary" aria-current={pathname === "/itinerary" ? "page" : undefined} className="site-nav-create">Create itinerary <span aria-hidden="true">↗</span></Link>
+    </nav>
+  </header>;
 }

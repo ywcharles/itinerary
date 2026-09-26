@@ -13,3 +13,116 @@ body {
   color: #000000;
 }
 
+body {
+  font-family: var(--font-primary), Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+.site-header {
+  background: #fff;
+  border-bottom: 1px solid #e5eae5;
+  font-family: var(--font-primary),Arial,sans-serif;
+  position: relative;
+  z-index: 10;
+}
+
+.site-header-home {
+  border-bottom: 0;
+}
+
+.site-nav {
+  max-width: 1440px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 25px 5.5%;
+}
+
+.site-logo {
+  color: var(--color-primary);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -1.4px;
+}
+
+.site-logo span {
+  color: #71936e;
+}
+
+.site-logo i {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 22px;
+  margin-left: 5px;
+}
+
+.site-nav-links {
+  display: flex;
+  gap: 30px;
+  font-size: 12px;
+  color: #657477;
+}
+
+.site-nav-links a:hover {
+  color: var(--color-primary);
+}
+
+.site-nav-create {
+  display: flex;
+  align-items: center;
+  gap: 23px;
+  background: #eff4ef;
+  color: #425d4a;
+  padding: 12px 17px;
+  border: 1px solid #dce7dc;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.site-nav-create:hover {
+  background: #e2ece0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 15px;
+  top: -100px;
+  background: #fff;
+  color: #2274a5;
+  padding: 12px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 10px;
+}
+
+@media(max-width:760px) {
+  .site-nav {
+    padding: 20px 24px;
+    gap: 15px;
+  }
+  .site-logo {
+    font-size: 25px;
+  }
+  .site-nav-links {
+    display: none;
+  }
+  .site-nav-create {
+    font-size: 11px;
+    gap: 12px;
+    padding: 11px 13px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

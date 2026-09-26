@@ -1,11 +1,11 @@
-import Navbar from "@/app/components/Navbar";
+import type { Metadata } from "next";
+import LandingStory from "./components/LandingStory";
+
+export const metadata: Metadata = {
+  title: "Itinerary — A little planning. A lot of possibility.",
+  description: "Bring your places, your people, and your next great day together on one shared map and itinerary.",
+};
 
 export default function Home() {
-  return (
-    <>
-      <main className="mx-auto w-full max-w-6xl px-6 py-10">
-        <h1 className="text-3xl font-bold">Home Page</h1>
-      </main>
-    </>
-  );
+  return <LandingStory />;
 }

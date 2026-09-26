@@ -22,6 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${header.variable} ${subheader.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col">
