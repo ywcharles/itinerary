@@ -23,6 +23,7 @@ export type TimeRange = { start: string; end: string };
 type Props = {
   day: string;
   stops: Stop[];
+  aiPreview?: Stop | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreateRange: (range: TimeRange) => void;
@@ -79,7 +80,7 @@ function minutesAt(offsetY: number) {
   return Math.min(Math.max(snapped, START_HOUR * 60), END_HOUR * 60);
 }
 
-export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest }: Props) {
+export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange, onEdit, onSuggest, aiPreview }: Props) {
   const totalHours = END_HOUR - START_HOUR;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const lanes = useMemo(() => layoutLanes(stops, day), [stops, day]);
@@ -230,6 +231,8 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
             onEdit={() => onEdit(stop.id)}
           />
         ))}
+
+        {aiPreview && <div className="pointer-events-none absolute left-1 right-3 z-30 overflow-hidden rounded-lg border-2 border-dashed border-primary bg-surface/95 p-2 text-xs text-ink shadow" style={getEventPosition(new Date(aiPreview.start_time), new Date(aiPreview.end_time), START_HOUR, HOUR_HEIGHT)}><strong>✦ Proposed · {aiPreview.name}</strong><div>{formatTime(new Date(aiPreview.start_time))} – {formatTime(new Date(aiPreview.end_time))} · Not saved</div></div>}
 
         {preview && preview.height > 0 && (
           <div

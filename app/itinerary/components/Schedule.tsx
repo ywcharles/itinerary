@@ -3,12 +3,14 @@ import Calendar from "./Calendar/Calendar";
 import { TimeRange } from "./Calendar/CalendarGrid";
 import { formatDay } from "./Calendar/calendarUtils";
 import type { Stop } from "../types";
+import DayWeather from "./DayWeather";
 
 type Props = {
   days: string[];
   day: string;
   onDayChange: (day: string) => void;
   stops: Stop[];
+  aiPreview?: Stop | null;
   loading: boolean;
   error: string | null;
   selectedId: string | null;
@@ -19,7 +21,8 @@ type Props = {
   onSuggest: (fromId: string, toId: string, freeMinutes: number) => void;
 };
 
-const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange, onEdit, onSuggest }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange, onEdit, onSuggest, aiPreview }: Props) => {
+  const weatherLocation = stops.find((s) => s.latitude != null && s.longitude != null);
   // Keep the selected day's tab visible when switching days (e.g. with the arrow keys).
   const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -62,8 +65,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           ))}
         </div>
       )}
-
-
+      {!loading && weatherLocation && <DayWeather day={day} location={weatherLocation} />}
       <div className="w-full flex-1 min-h-0">
         <Calendar
           day={day}
@@ -76,6 +78,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           onTimeChange={onTimeChange}
           onEdit={onEdit}
           onSuggest={onSuggest}
+          aiPreview={aiPreview}
         />
       </div>
     </div>

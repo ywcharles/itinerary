@@ -12,10 +12,12 @@ type Props = {
   // First and last day of the trip (YYYY-MM-DD).
   firstDay: string;
   lastDay: string;
+  onReview: () => void;
+  canReview: boolean;
 };
 
 // One compact bar for trip pages: app, trip name, dates and actions.
-export default function TripBar({ tripName, firstDay, lastDay }: Props) {
+export default function TripBar({ tripName, firstDay, lastDay, onReview, canReview }: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
       <Link href="/" className="shrink-0 rounded focus-visible:outline-2 focus-visible:outline-primary">
@@ -30,6 +32,7 @@ export default function TripBar({ tripName, firstDay, lastDay }: Props) {
       </span>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <button type="button" onClick={onReview} disabled={!canReview} title={canReview ? "Review the selected day with Gemini" : "Add an activity to this day first"} className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-sm font-medium hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40">✦ Review day</button>
         <Link
           href="/itinerary"
           className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
