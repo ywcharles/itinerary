@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import CreateItinerary from "./CreateItinerary";
 
 export const metadata: Metadata = {
-  title: "Create itinerary",
+  title: "New trip",
 };
 
 // Always show the current list of trips.

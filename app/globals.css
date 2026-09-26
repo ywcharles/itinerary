@@ -4,12 +4,17 @@
   --color-primary: #2274A5;
   --color-secondary: #80AB82;
   --color-accent: #826754;
-  --font-primary: var(--font-primary);
-  --font-secondary: var(--font-secondary);
+  /* Neutrals: warm off-white canvas behind white cards, and a soft near-black for text. */
+  --color-canvas: #F4F5F1;
+  --color-ink: #1D2A33;
+  --color-muted: #66737C;
+  --color-line: #E3E6E1;
+  --font-sans: var(--font-primary), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-second), ui-monospace, monospace;
 }
 
 body {
-  background: #FFFFFF;
-  color: #000000;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }
-

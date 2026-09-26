@@ -173,7 +173,7 @@ export default function Maps({ stops, selectedId, onSelect }: Props) {
     <div
       ref={ref}
       aria-label="Itinerary map"
-      className="h-full w-full overflow-hidden rounded-2xl"
+      className="h-full w-full overflow-hidden rounded-2xl border border-line shadow-sm"
     />
   );
 }

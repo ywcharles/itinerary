@@ -2,46 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const links = [
-  { href: "/itinerary", label: "Create Itinerary" },
-];
+import { Logo } from "./Logo";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const onCreatePage = pathname === "/itinerary";
 
   return (
-    <header className="border-b border-black/15 bg-white
-    ">
+    <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur">
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4"
+        className="flex h-14 items-center justify-between gap-4 px-4"
       >
         <Link
           href="/"
-          className="rounded text-xl font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
+          className="rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
         >
-          <span className="text-primary">Itin</span><span className="text-secondary">erary</span>
+          <Logo />
         </Link>
-        <ul className="flex flex-wrap items-center gap-2">
-          {links.map(({ href, label }) => {
-            const isActive =
-              pathname === href ||
-              (href !== "/" && pathname.startsWith(`${href}/`));
-
-            return (
-              <li key={label}>
-                <Link
-                  href={href}
-                  aria-current={isActive ? "page" : undefined}
-                  className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary"
-                >
-                  {label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <Link
+          href="/itinerary"
+          aria-current={onCreatePage ? "page" : undefined}
+          className="inline-flex h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+        >
+          + New trip
+        </Link>
       </nav>
     </header>
   );

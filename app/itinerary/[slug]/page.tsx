@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const name = tripNameFromSlug(slug);
   return {
-    title: `Itinerary – ${name}`,
+    title: name,
     description: `Shared day-by-day plan for ${name}.`,
   };
 }

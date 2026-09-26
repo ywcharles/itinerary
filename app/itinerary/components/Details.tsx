@@ -181,14 +181,19 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
 
   if (!stop) {
     return (
-      <div className="rounded-2xl bg-secondary h-full w-full flex justify-center items-center text-white">
-        Click an activity to see its details
+      <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full flex flex-col justify-center items-center gap-2 p-6 text-center">
+        <svg viewBox="0 0 24 24" className="h-8 w-8 text-secondary" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" />
+          <circle cx="12" cy="10" r="2.3" />
+        </svg>
+        <p className="font-medium">Select an activity</p>
+        <p className="text-sm text-muted">Click one in the calendar or on the map to see photos, opening hours and notes.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border h-full w-full overflow-y-auto">
+    <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full overflow-y-auto">
       <div className="relative h-24 w-full shrink-0 bg-secondary">
         {place?.photoUrl && (
           // Google photo URLs are signed and short-lived, so next/image optimization isn't a fit.

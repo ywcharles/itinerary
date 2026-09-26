@@ -22,6 +22,8 @@ type Props = {
   // The day the grid shows (YYYY-MM-DD); events from or into other days are clipped to it.
   day: string;
   lane: { column: number; columns: number };
+  // Same number as the stop's pin on the map.
+  number: number;
   title: string;
   start: string;
   end: string;
@@ -37,6 +39,7 @@ function minutesOfDay(date: Date) {
 export default function CalendarEvent({
   day,
   lane,
+  number,
   title,
   start,
   end,
@@ -157,9 +160,13 @@ export default function CalendarEvent({
       }}
       onPointerDown={onMoveDown}
       {...dragHandlers}
-      className={`group absolute flex flex-col justify-start rounded-lg bg-secondary border p-3 overflow-hidden text-left touch-none select-none ${
-        preview ? "cursor-grabbing z-20 shadow-lg opacity-90" : draggable ? "cursor-grab" : "cursor-pointer"
-      } ${selected ? "border-primary ring-2 ring-primary" : "border-secondary"}`}
+      className={`group absolute flex flex-col justify-start rounded-lg border border-l-4 px-2.5 py-1.5 overflow-hidden text-left text-ink touch-none select-none transition-shadow ${
+        preview ? "cursor-grabbing z-20 shadow-lg" : draggable ? "cursor-grab hover:shadow-md" : "cursor-pointer hover:shadow-md"
+      } ${
+        selected
+          ? "z-10 border-primary bg-[#E3EEF5] shadow-md"
+          : "border-secondary/40 border-l-secondary bg-[#EEF4EE]"
+      }`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
@@ -187,9 +194,18 @@ export default function CalendarEvent({
         </div>
       )}
 
-      <p>{title}</p>
+      <p className="flex items-center gap-1.5 text-sm font-medium leading-tight">
+        <span
+          className={`inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white ${
+            selected ? "bg-primary" : "bg-secondary"
+          }`}
+        >
+          {number}
+        </span>
+        <span className="truncate">{title}</span>
+      </p>
 
-      <p className="text-xs text-white mt-1">
+      <p className="text-xs text-muted mt-0.5 truncate">
         {endsLaterDay && `${formatDay(dayKey(startDate), "short")}, `}{formatTime(startDate)} –{" "}
         {endsLaterDay && `${formatDay(dayKey(endDate), "short")}, `}{formatTime(endDate)}
       </p>

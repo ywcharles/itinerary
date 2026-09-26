@@ -19,20 +19,20 @@ type Props = {
 
 const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange }: Props) => {
   return (
-    <div className="rounded-2xl border h-full w-full flex flex-col p-4 gap-3">
+    <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full flex flex-col p-4 gap-3">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold">{formatDay(day)}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{formatDay(day)}</h2>
         <button
           type="button"
           onClick={() => onAdd()}
-          className="rounded-xl bg-secondary px-4 h-10 text-white font-medium hover:bg-secondary/90"
+          className="rounded-lg bg-primary px-3.5 h-9 text-sm text-white font-medium shadow-sm transition-colors hover:bg-primary/90"
         >
           + Add activity
         </button>
       </div>
 
       {days.length > 1 && (
-        <div role="tablist" aria-label="Trip days" className="flex gap-2 overflow-x-auto">
+        <div role="tablist" aria-label="Trip days" className="flex gap-1 overflow-x-auto rounded-xl bg-canvas p-1">
           {days.map((d, index) => (
             <button
               key={d}
@@ -40,17 +40,18 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
               role="tab"
               aria-selected={d === day}
               onClick={() => onDayChange(d)}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm border ${
-                d === day ? "bg-primary text-white border-primary" : "bg-white hover:bg-gray-50"
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                d === day ? "bg-white font-medium text-ink shadow-sm" : "text-muted hover:text-ink"
               }`}
             >
-              Day {index + 1} · {formatDay(d, "short")}
+              <span className="font-medium">Day {index + 1}</span>
+              <span className="ml-1.5 text-xs opacity-75">{formatDay(d, "short")}</span>
             </button>
           ))}
         </div>
       )}
 
-      <p className="text-xs text-gray-500">Drag on an empty slot to plan something. Drag an activity to move it, or its edge to change the length.</p>
+      <p className="text-xs text-muted">Drag on an empty slot to plan something. Drag an activity to move it, or its edge to change the length.{days.length > 1 && " Use ← → to switch days."}</p>
 
       <div className="w-full flex-1 min-h-0">
         <Calendar

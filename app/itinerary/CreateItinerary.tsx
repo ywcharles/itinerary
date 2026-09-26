@@ -51,9 +51,9 @@ export default function CreateItinerary({ existing }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-xl px-6 py-10 flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h1 className="text-2xl font-bold">Plan a new trip</h1>
-        <p className="text-sm text-gray-600">
+      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">Plan a new trip</h1>
+        <p className="text-sm text-muted">
           Give your trip a name. You&apos;ll get a link you can share with the people you travel with.
         </p>
         <form onSubmit={create} className="flex gap-2">
@@ -62,7 +62,7 @@ export default function CreateItinerary({ existing }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Ottawa weekend"
-            className="flex-1 rounded-lg border px-3 py-2 text-sm"
+            className="flex-1 rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <button
             type="submit"
@@ -74,18 +74,22 @@ export default function CreateItinerary({ existing }: Props) {
         </form>
         {error && <p className="text-sm text-red-600">{error}</p>}
         {name.trim() && slugify(name) && (
-          <p className="text-xs text-gray-500">Link: /itinerary/{slugify(name)}</p>
+          <p className="text-xs text-muted">Link: /itinerary/{slugify(name)}</p>
         )}
       </section>
 
       {existing.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-gray-700">Existing trips</h2>
-          <ul className="flex flex-col gap-1">
+          <h2 className="text-sm font-semibold text-muted">Existing trips</h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
             {existing.map(({ link_slug }) => (
               <li key={link_slug}>
-                <Link href={`/itinerary/${link_slug}`} className="text-sm text-primary hover:underline">
-                  /itinerary/{link_slug}
+                <Link
+                  href={`/itinerary/${link_slug}`}
+                  className="block rounded-xl border border-line bg-white px-4 py-3 text-sm shadow-sm transition-shadow hover:shadow-md"
+                >
+                  <span className="font-medium">{link_slug.replace(/-/g, " ")}</span>
+                  <span className="block text-xs text-muted">/itinerary/{link_slug}</span>
                 </Link>
               </li>
             ))}

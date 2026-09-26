@@ -108,7 +108,8 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
 
   return (
     <div
-      className="relative"
+      // Top/bottom margin keeps the first and last hour labels from being clipped.
+      className="relative my-3"
       style={{
         height: `${totalHours * HOUR_HEIGHT}px`,
       }}
@@ -122,12 +123,12 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
           return (
             <div
               key={hour}
-              className="absolute left-0 right-0 border-t border-gray-200"
+              className="absolute left-0 right-0 border-t border-line"
               style={{
                 top: `${index * HOUR_HEIGHT}px`,
               }}
             >
-              <div className="absolute left-0 -top-3 w-16 px-2 text-xs text-gray-500">
+              <div className="absolute left-0 -top-2 w-16 bg-white px-2 text-[11px] text-muted">
                 {formatHour(hour)}
               </div>
             </div>
@@ -143,9 +144,10 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
         onPointerUp={handlePointerUp}
         onPointerCancel={() => setDrag(null)}
       >
-        {stops.map((stop) => (
+        {stops.map((stop, index) => (
           <CalendarEvent
             key={stop.id}
+            number={index + 1}
             day={day}
             lane={lanes.get(stop.id) ?? { column: 0, columns: 1 }}
             title={stop.name}

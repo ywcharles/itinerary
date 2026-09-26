@@ -7,6 +7,7 @@ import { dayKey, daysCovered, formatDay, toTimestamp } from "./components/Calend
 import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
+import ShareButton from "./components/ShareButton";
 import { useStops } from "./hooks/useStops";
 import { byStartTime, coordinatesOf } from "./stopUtils";
 
@@ -87,6 +88,24 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedStopId, addRange, deleting, deleteStop]);
 
+  // Left/right arrow keys switch to the previous/next day of the trip.
+  useEffect(() => {
+    if (days.length < 2 || addRange) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const target = e.target as HTMLElement;
+      // Leave arrows alone while typing, and on the map (Google Maps pans with them).
+      if (target.closest("input, textarea, select, [contenteditable='true'], [aria-label='Itinerary map']")) return;
+      const next = days.indexOf(day) + (e.key === "ArrowRight" ? 1 : -1);
+      if (next < 0 || next >= days.length) return;
+      e.preventDefault();
+      setChosenDay(days[next]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [days, day, addRange]);
+
   const changeTime = useCallback(async (id: string, range: TimeRange) => {
     try {
       await updateStop(id, { start_time: range.start, end_time: range.end });
@@ -111,13 +130,17 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4 p-4">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-2xl font-bold">{tripName}</h1>
-        <p className="text-sm text-gray-500">
-          {formatDay(days[0], "short")}
-          {days.length > 1 && ` – ${formatDay(days[days.length - 1], "short")}`}
-          {` · ${days.length} ${days.length === 1 ? "day" : "days"}`}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{tripName}</h1>
+          <p className="text-sm text-muted">
+            {formatDay(days[0], "short")}
+            {days.length > 1 && ` – ${formatDay(days[days.length - 1], "short")}`}
+            {` · ${days.length} ${days.length === 1 ? "day" : "days"}`}
+            {` · ${sortedStops.length} ${sortedStops.length === 1 ? "activity" : "activities"}`}
+          </p>
+        </div>
+        <ShareButton />
       </div>
 
       <div className="flex-1 min-h-0 flex gap-4">

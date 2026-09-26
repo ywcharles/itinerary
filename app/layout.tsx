@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "./components/Navbar";
+import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 
 const header = Geist({
   variable: "--font-primary",
@@ -14,8 +15,8 @@ const subheader = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Itinerary",
-  description: "Plan trips together on a shared map and calendar.",
+  title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
+  description: APP_TAGLINE,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
