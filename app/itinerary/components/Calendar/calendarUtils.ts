@@ -1,6 +1,12 @@
 // UI locale; keep in sync with LANGUAGE in lib/googleMaps.ts.
 export const LOCALE = "en-US";
 
+// The day grid covers the whole day; it opens scrolled to daytime (see DEFAULT_SCROLL_HOUR).
+export const START_HOUR = 0;
+export const END_HOUR = 24;
+export const HOUR_HEIGHT = 80;
+export const DEFAULT_SCROLL_HOUR = 7;
+
 export function getEventPosition(
   start: Date,
   end: Date,
@@ -10,8 +16,10 @@ export function getEventPosition(
   const startMinutes =
     start.getHours() * 60 + start.getMinutes();
 
+  // An end on a later day (e.g. midnight at the bottom of the grid) counts past 24:00.
   const endMinutes =
-    end.getHours() * 60 + end.getMinutes();
+    end.getHours() * 60 + end.getMinutes() +
+    (dayKey(end) > dayKey(start) ? 24 * 60 : 0);
 
   const calendarStartMinutes = startHour * 60;
 
@@ -62,7 +70,10 @@ export function timeOfDay(timestamp: string | Date) {
 
 /** UTC ISO timestamp for a local day plus minutes since local midnight. */
 export function toTimestamp(day: string, minutes: number) {
-  return new Date(`${day}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}:00`).toISOString();
+  // Built from local midnight, so 24:00 (end of day) works too.
+  const date = new Date(`${day}T00:00:00`);
+  date.setMinutes(minutes);
+  return date.toISOString();
 }
 
 export function formatDay(day: string, format: "long" | "short" = "long") {
@@ -75,12 +86,17 @@ export function formatDay(day: string, format: "long" | "short" = "long") {
 // Caps runaway ranges from bad data (e.g. an end date typed years ahead).
 const MAX_SPAN_DAYS = 14;
 
+/** The local day an event ends on; ending exactly at midnight still belongs to the day before. */
+export function endDayKey(end: string | Date) {
+  return dayKey(new Date(new Date(end).getTime() - 1));
+}
+
 /** Every local day (YYYY-MM-DD) from start to end, inclusive. */
 export function daysCovered(start: string | Date, end: string | Date) {
   const days: string[] = [];
   const cursor = new Date(start);
   cursor.setHours(0, 0, 0, 0);
-  const last = dayKey(end);
+  const last = endDayKey(end);
   while (days.length < MAX_SPAN_DAYS) {
     const key = dayKey(cursor);
     days.push(key);

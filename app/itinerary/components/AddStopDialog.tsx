@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
 import type { NewStop } from "../types";
 import { TimeRange } from "./Calendar/CalendarGrid";
-import { dayKey, timeOfDay } from "./Calendar/calendarUtils";
+import { dayKey, timeOfDay, toTimestamp } from "./Calendar/calendarUtils";
 import { LatLng, mapsUrlForPlace } from "../stopUtils";
 import { asMapsUrl, isShortMapsLink, parseMapsUrl } from "@/lib/mapsLink";
 
@@ -134,7 +134,9 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
     }
   };
 
-  const invalidTime = end <= start;
+  // An end of 00:00 means midnight at the end of that day.
+  const endsAtMidnight = end === "00:00";
+  const invalidTime = !endsAtMidnight && end <= start;
 
   const add = async () => {
     if (!chosen || invalidTime) return;
@@ -145,7 +147,9 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, on
         name: chosen.name,
         // Inputs are local time; the DB stores UTC timestamps.
         start_time: new Date(`${date}T${start}`).toISOString(),
-        end_time: new Date(`${date}T${end}`).toISOString(),
+        end_time: endsAtMidnight
+          ? toTimestamp(date, 24 * 60)
+          : new Date(`${date}T${end}`).toISOString(),
         description: description.trim() || null,
         google_maps_url: chosen.mapsUrl ?? (chosen.id ? mapsUrlForPlace(chosen.name, chosen.id) : null),
         latitude: chosen.coordinates.lat,

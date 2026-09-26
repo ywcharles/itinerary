@@ -4,11 +4,12 @@ import {
   formatTime,
   formatDay,
   dayKey,
+  endDayKey,
+  toTimestamp,
+  START_HOUR,
+  END_HOUR,
+  HOUR_HEIGHT,
 } from "./calendarUtils";
-
-const START_HOUR = 6;
-const END_HOUR = 22;
-const HOUR_HEIGHT = 80;
 const SNAP_MINUTES = 15;
 const MIN_DURATION_MINUTES = 15;
 // Pointer movement below this is a click, not a drag.
@@ -57,11 +58,11 @@ export default function CalendarEvent({
 
   // Events that cross midnight are clipped to the shown day's grid, and can't be dragged
   // (moving them would need a multi-day view).
-  const endsLaterDay = dayKey(endDate) !== dayKey(startDate);
+  const endsLaterDay = endDayKey(endDate) !== dayKey(startDate);
   const startsEarlier = dayKey(startDate) < day;
-  const continuesLater = dayKey(endDate) > day;
-  const visibleStart = startsEarlier ? new Date(`${day}T${String(START_HOUR).padStart(2, "0")}:00:00`) : startDate;
-  const visibleEnd = continuesLater ? new Date(`${day}T${String(END_HOUR).padStart(2, "0")}:00:00`) : endDate;
+  const continuesLater = endDayKey(endDate) > day;
+  const visibleStart = startsEarlier ? new Date(toTimestamp(day, START_HOUR * 60)) : startDate;
+  const visibleEnd = continuesLater ? new Date(toTimestamp(day, END_HOUR * 60)) : endDate;
   const draggable = !endsLaterDay;
 
   const { top, height } = getEventPosition(

@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
 import type { Stop } from "../types";
 import { coordinatesOf, placeIdOf } from "../stopUtils";
+import { hoursForWeekday, Period, placeLocal, visitStatus } from "@/lib/openingHours";
+import { formatDay, dayKey } from "./Calendar/calendarUtils";
 
 type PlaceInfo = {
   name: string;
@@ -11,10 +13,27 @@ type PlaceInfo = {
   photoUrl: string | null;
   photoAttribution: string | null;
   openingHours: string[];
+  periods: Period[];
+  utcOffsetMinutes: number | null;
   rating: number | null;
   ratingCount: number | null;
   website: string | null;
   mapsUrl: string | null;
+  phone: string | null;
+  phoneLink: string | null;
+  category: string | null;
+  priceLevel: string | null;
+  summary: string | null;
+  reservable: boolean | null;
+  businessStatus: string | null;
+};
+
+const PRICE_LEVELS: Record<string, string> = {
+  FREE: "Free",
+  INEXPENSIVE: "$",
+  MODERATE: "$$",
+  EXPENSIVE: "$$$",
+  VERY_EXPENSIVE: "$$$$",
 };
 
 // Places lookups cost money, so each stop is only looked up once per session.
@@ -36,6 +55,14 @@ function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
       "userRatingCount",
       "websiteURI",
       "googleMapsURI",
+      "utcOffsetMinutes",
+      "nationalPhoneNumber",
+      "internationalPhoneNumber",
+      "primaryTypeDisplayName",
+      "priceLevel",
+      "editorialSummary",
+      "isReservable",
+      "businessStatus",
     ];
     const placeId = placeIdOf(stop);
     const coordinates = coordinatesOf(stop);
@@ -59,13 +86,29 @@ function fetchPlaceInfo(stop: Stop): Promise<PlaceInfo | null> {
     return {
       name: place.displayName ?? stop.name,
       address: place.formattedAddress ?? null,
-      photoUrl: photo?.getURI({ maxHeight: 400 }) ?? null,
+      photoUrl: photo?.getURI({ maxHeight: 800 }) ?? null,
       photoAttribution: photo?.authorAttributions[0]?.displayName ?? null,
       openingHours: place.regularOpeningHours?.weekdayDescriptions ?? [],
+      periods: (place.regularOpeningHours?.periods ?? []).map((period) => ({
+        open: { day: period.open.day, hour: period.open.hour, minute: period.open.minute },
+        close: period.close
+          ? { day: period.close.day, hour: period.close.hour, minute: period.close.minute }
+          : null,
+      })),
+      utcOffsetMinutes: place.utcOffsetMinutes ?? null,
       rating: place.rating ?? null,
       ratingCount: place.userRatingCount ?? null,
       website: place.websiteURI ?? null,
       mapsUrl: place.googleMapsURI ?? null,
+      phone: place.nationalPhoneNumber ?? place.internationalPhoneNumber ?? null,
+      phoneLink: place.internationalPhoneNumber
+        ? `tel:${place.internationalPhoneNumber.replace(/[^\d+]/g, "")}`
+        : null,
+      category: place.primaryTypeDisplayName ?? null,
+      priceLevel: place.priceLevel ? PRICE_LEVELS[place.priceLevel] ?? null : null,
+      summary: place.editorialSummary ?? null,
+      reservable: place.isReservable ?? null,
+      businessStatus: place.businessStatus ?? null,
     };
   });
 
@@ -139,9 +182,60 @@ function NotesField({ value, onSave }: NotesProps) {
         }}
         placeholder="e.g. Book a table in advance, meet at the entrance…"
         rows={2}
-        className="rounded-lg border p-2 text-sm resize-y"
+        className="rounded-lg border border-line p-2 text-sm resize-y outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
     </label>
+  );
+}
+
+// Opening hours for the day of the visit, and whether the place is open for all of it.
+function VisitHours({ place, stop }: { place: PlaceInfo; stop: Stop }) {
+  if (place.openingHours.length === 0) {
+    return (
+      <div className="text-sm">
+        <h3 className="font-semibold">Opening hours</h3>
+        <p className="text-muted">No opening hours available</p>
+      </div>
+    );
+  }
+
+  // The weekday of the visit where the place is (falls back to the viewer's time zone).
+  const weekday = place.utcOffsetMinutes != null
+    ? placeLocal(stop.start_time, place.utcOffsetMinutes).weekday
+    : new Date(stop.start_time).getDay();
+  const hours = hoursForWeekday(place.openingHours, weekday);
+  const status = visitStatus(place.periods, stop.start_time, stop.end_time, place.utcOffsetMinutes);
+
+  const badge =
+    status.kind === "open"
+      ? { text: "Open during your visit", className: "bg-[#EEF4EE] text-[#3F6B42]" }
+      : status.kind === "closes-early"
+        ? { text: `Closes at ${status.closesAt}, before you leave`, className: "bg-amber-50 text-amber-800" }
+        : status.kind === "closed"
+          ? {
+              text: status.opensAt ? `Closed when you arrive, opens ${status.opensAt}` : "Closed when you arrive",
+              className: "bg-red-50 text-red-700",
+            }
+          : null;
+
+  return (
+    <div className="text-sm">
+      <h3 className="font-semibold">Opening hours · {formatDay(dayKey(stop.start_time), "short")}</h3>
+      <p>{hours ?? "Unknown"}</p>
+      {badge && (
+        <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
+          {badge.text}
+        </span>
+      )}
+      <details className="mt-1 text-muted">
+        <summary className="cursor-pointer text-xs hover:text-ink">All hours</summary>
+        <ul className="mt-1 leading-relaxed">
+          {place.openingHours.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
   );
 }
 
@@ -192,50 +286,74 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
     );
   }
 
-  return (
-    <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full overflow-y-auto">
-      <div className="relative h-24 w-full shrink-0 bg-secondary">
-        {place?.photoUrl && (
-          // Google photo URLs are signed and short-lived, so next/image optimization isn't a fit.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={place.photoUrl} alt={place.name} className="h-full w-full object-cover" />
-        )}
-        {place?.photoAttribution && (
-          <span className="absolute bottom-1 right-2 text-[10px] text-white drop-shadow">
-            Photo: {place.photoAttribution}
-          </span>
-        )}
-        {status === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center text-white">Loading…</div>
-        )}
-      </div>
+  const photo = (
+    <div className="relative hidden w-2/5 shrink-0 bg-canvas sm:block">
+      {place?.photoUrl ? (
+        // Google photo URLs are signed and short-lived, so next/image optimization isn't a fit.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={place.photoUrl} alt={place.name} className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center text-secondary/60">
+          {status === "loading" ? (
+            <span className="text-sm text-muted">Loading…</span>
+          ) : (
+            <svg viewBox="0 0 24 24" className="h-10 w-10" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" />
+              <circle cx="12" cy="10" r="2.3" />
+            </svg>
+          )}
+        </div>
+      )}
+      {place?.photoAttribution && (
+        <span className="absolute bottom-1.5 right-2 max-w-[90%] truncate text-[10px] text-white drop-shadow">
+          Photo: {place.photoAttribution}
+        </span>
+      )}
+    </div>
+  );
 
-      <div className="p-3 flex flex-col gap-2">
+  return (
+    <div className="flex h-full w-full overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+      <div className="min-w-0 flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         <div>
           <div className="flex items-start justify-between gap-2">
-            <h2 className="text-base font-semibold">{place?.name ?? stop.name}</h2>
+            <h2 className="text-lg font-semibold leading-tight tracking-tight">{place?.name ?? stop.name}</h2>
             <button
               type="button"
               onClick={() => onDelete(stop.id)}
               disabled={deleting}
               title="Delete activity (Backspace)"
-              className="shrink-0 rounded-lg border px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               {deleting ? "Deleting…" : "Delete"}
             </button>
           </div>
           {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
-          {place?.address && <p className="text-sm text-gray-500">{place.address}</p>}
+          {(place?.category || place?.priceLevel) && (
+            <p className="mt-0.5 text-sm font-medium text-muted">
+              {[place.category, place.priceLevel].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {place?.address && <p className="mt-0.5 text-sm text-muted">{place.address}</p>}
           {current && !place && !current.failed && (
-            <p className="text-sm text-gray-500">No location set for this activity.</p>
+            <p className="mt-0.5 text-sm text-muted">No location set for this activity.</p>
           )}
           {place?.rating != null && (
-            <p className="text-sm">
+            <p className="mt-0.5 text-sm">
               ★ {place.rating.toFixed(1)}
-              {place.ratingCount != null && <span className="text-gray-500"> ({place.ratingCount})</span>}
+              {place.ratingCount != null && <span className="text-muted"> ({place.ratingCount.toLocaleString("en-US")})</span>}
             </p>
           )}
         </div>
+
+        {place?.businessStatus && place.businessStatus !== "OPERATIONAL" && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {place.businessStatus === "CLOSED_PERMANENTLY" ? "Permanently closed" : "Temporarily closed"}
+            {" "}according to Google.
+          </p>
+        )}
+
+        {place?.summary && <p className="text-sm text-muted">{place.summary}</p>}
 
         <NotesField
           key={stop.id}
@@ -247,29 +365,27 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
           <p className="text-sm text-red-600">Couldn&apos;t load place info from Google.</p>
         )}
 
-        {place && (
-          <div>
-            <h3 className="text-sm font-semibold">Opening hours</h3>
-            {place.openingHours.length > 0 ? (
-              <ul className="text-sm text-gray-700">
-                {place.openingHours.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-500">No opening hours available</p>
-            )}
+        {place && <VisitHours place={place} stop={stop} />}
+
+        {place?.phone && (
+          <div className="text-sm">
+            <h3 className="font-semibold">Phone</h3>
+            <a href={place.phoneLink ?? undefined} className="text-primary hover:underline">
+              {place.phone}
+            </a>
+            {place.reservable && <span className="text-muted"> · Takes reservations</span>}
           </div>
         )}
 
         {(place?.website || mapsLink) && (
           <div className="flex gap-4 text-sm text-primary">
-            {place?.website && <a href={place.website} target="_blank" rel="noreferrer">Website</a>}
-            {mapsLink && <a href={mapsLink} target="_blank" rel="noreferrer">Open in Google Maps</a>}
+            {place?.website && <a href={place.website} target="_blank" rel="noreferrer" className="hover:underline">Website</a>}
+            {mapsLink && <a href={mapsLink} target="_blank" rel="noreferrer" className="hover:underline">Open in Google Maps</a>}
           </div>
         )}
-
       </div>
+
+      {photo}
     </div>
   );
 };

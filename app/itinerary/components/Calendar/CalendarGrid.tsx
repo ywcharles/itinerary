@@ -1,11 +1,19 @@
 import React, { useMemo, useState } from "react";
 import CalendarEvent from "./CalendarEvent";
-import { formatHour, formatTime, toTimestamp } from "./calendarUtils";
+import {
+  dayKey,
+  END_HOUR,
+  formatHour,
+  formatTime,
+  getEventPosition,
+  HOUR_HEIGHT,
+  START_HOUR,
+  toTimestamp,
+} from "./calendarUtils";
+import { useTravelLegs } from "../../hooks/useTravelLegs";
+import { formatDuration } from "@/lib/routes";
 import type { Stop } from "../../types";
 
-const START_HOUR = 6;
-const END_HOUR = 22;
-const HOUR_HEIGHT = 80;
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION_MINUTES = 60;
 
@@ -71,6 +79,8 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
   const totalHours = END_HOUR - START_HOUR;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const lanes = useMemo(() => layoutLanes(stops, day), [stops, day]);
+  // Travel time between consecutive activities, shown in the gap between them.
+  const travel = useTravelLegs(stops).filter(({ from }) => dayKey(from.end_time) === day);
 
   const offsetY = (e: React.PointerEvent<HTMLDivElement>) =>
     e.clientY - e.currentTarget.getBoundingClientRect().top;
@@ -144,6 +154,55 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
         onPointerUp={handlePointerUp}
         onPointerCancel={() => setDrag(null)}
       >
+        {/* Travel between consecutive stops: a dotted connector through the gap with a small time pill. */}
+        {travel.map(({ from, to, leg, gapMinutes }) => {
+          const gridEnd = new Date(toTimestamp(day, END_HOUR * 60));
+          const arrival = new Date(to.start_time);
+          const { top, height } = getEventPosition(
+            new Date(from.end_time),
+            arrival > gridEnd ? gridEnd : arrival,
+            START_HOUR,
+            HOUR_HEIGHT,
+          );
+          const gap = Math.max(height, 0);
+          const shortBy = Math.ceil(leg.durationMinutes - gapMinutes);
+          const tooTight = shortBy > 0;
+          const verb = leg.mode === "WALKING" ? "walk" : "drive";
+          return (
+            <div
+              key={`${from.id}->${to.id}`}
+              className="pointer-events-none absolute left-2 right-4"
+              style={{ top: `${top}px`, height: `${gap}px` }}
+            >
+              {gap > 0 && (
+                <div
+                  className={`absolute right-8 top-0 bottom-0 border-l-2 border-dotted ${
+                    tooTight ? "border-red-300" : "border-muted/40"
+                  }`}
+                />
+              )}
+              <span
+                title={
+                  tooTight
+                    ? `${formatDuration(leg.durationMinutes)} ${verb} to ${to.name}, but only ${Math.max(0, Math.round(gapMinutes))} min until it starts`
+                    : `${formatDuration(leg.durationMinutes)} ${verb} to ${to.name} · ${(leg.distanceMeters / 1000).toFixed(1)} km`
+                }
+                // Always on the right, where it never covers a title; centered in the gap
+                // (for back-to-back activities it sits on the boundary).
+                className={`pointer-events-auto absolute right-2 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium shadow-sm ${
+                  tooTight
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : "border-line bg-white text-muted"
+                }`}
+              >
+                <span aria-hidden>{leg.mode === "WALKING" ? "🚶" : "🚗"}</span>
+                {formatDuration(leg.durationMinutes)}
+                {tooTight && <span className="font-semibold">· {shortBy} min short</span>}
+              </span>
+            </div>
+          );
+        })}
+
         {stops.map((stop, index) => (
           <CalendarEvent
             key={stop.id}
