@@ -12,9 +12,10 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreateRange: (range: TimeRange) => void;
+  onTimeChange: (id: string, range: TimeRange) => void;
 };
 
-export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange }: Props) {
+export default function Calendar({ day, stops, loading, error, selectedId, onSelect, onCreateRange, onTimeChange }: Props) {
   return (
     <div className="relative w-full h-full overflow-auto rounded-xl border bg-white">
       {/* Status banner; the grid stays usable so events can be dragged in even when empty. */}
@@ -38,6 +39,7 @@ export default function Calendar({ day, stops, loading, error, selectedId, onSel
         selectedId={selectedId}
         onSelect={onSelect}
         onCreateRange={onCreateRange}
+        onTimeChange={onTimeChange}
       />
     </div>
   );

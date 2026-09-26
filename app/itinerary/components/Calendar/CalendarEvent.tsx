@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   getEventPosition,
   formatTime,
@@ -9,54 +9,190 @@ import {
 const START_HOUR = 6;
 const END_HOUR = 22;
 const HOUR_HEIGHT = 80;
+const SNAP_MINUTES = 15;
+const MIN_DURATION_MINUTES = 15;
+// Pointer movement below this is a click, not a drag.
+const DRAG_THRESHOLD_PX = 4;
+
+const MINUTE_MS = 60_000;
+
+type DragMode = "move" | "resize-start" | "resize-end";
 
 type Props = {
+  // The day the grid shows (YYYY-MM-DD); events from or into other days are clipped to it.
+  day: string;
+  lane: { column: number; columns: number };
   title: string;
   start: string;
   end: string;
   selected: boolean;
   onClick: () => void;
+  onTimeChange: (start: string, end: string) => void;
 };
 
+function minutesOfDay(date: Date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 export default function CalendarEvent({
+  day,
+  lane,
   title,
   start,
   end,
   selected,
   onClick,
+  onTimeChange,
 }: Props) {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+  const drag = useRef<{ mode: DragMode; startY: number; moved: boolean } | null>(null);
+  const [preview, setPreview] = useState<{ start: Date; end: Date } | null>(null);
 
-  // Events that run past midnight are drawn to the bottom of the day's grid.
+  const originalStart = new Date(start);
+  const originalEnd = new Date(end);
+  const startDate = preview?.start ?? originalStart;
+  const endDate = preview?.end ?? originalEnd;
+
+  // Events that cross midnight are clipped to the shown day's grid, and can't be dragged
+  // (moving them would need a multi-day view).
   const endsLaterDay = dayKey(endDate) !== dayKey(startDate);
-  const visibleEnd = new Date(startDate);
-  if (endsLaterDay) visibleEnd.setHours(END_HOUR, 0, 0, 0);
+  const startsEarlier = dayKey(startDate) < day;
+  const continuesLater = dayKey(endDate) > day;
+  const visibleStart = startsEarlier ? new Date(`${day}T${String(START_HOUR).padStart(2, "0")}:00:00`) : startDate;
+  const visibleEnd = continuesLater ? new Date(`${day}T${String(END_HOUR).padStart(2, "0")}:00:00`) : endDate;
+  const draggable = !endsLaterDay;
 
   const { top, height } = getEventPosition(
-    startDate,
-    endsLaterDay ? visibleEnd : endDate,
+    visibleStart,
+    visibleEnd,
     START_HOUR,
     HOUR_HEIGHT,
   );
 
+  // New start/end for a drag of `deltaMinutes`, kept inside the visible grid.
+  const applyDelta = (mode: DragMode, deltaMinutes: number) => {
+    const gridStart = START_HOUR * 60;
+    const gridEnd = END_HOUR * 60;
+    const startMin = minutesOfDay(originalStart);
+    const durationMin = (originalEnd.getTime() - originalStart.getTime()) / MINUTE_MS;
+
+    let delta = deltaMinutes;
+    if (mode === "move") {
+      delta = Math.min(Math.max(delta, gridStart - startMin), gridEnd - durationMin - startMin);
+      return {
+        start: new Date(originalStart.getTime() + delta * MINUTE_MS),
+        end: new Date(originalEnd.getTime() + delta * MINUTE_MS),
+      };
+    }
+    if (mode === "resize-start") {
+      delta = Math.min(Math.max(delta, gridStart - startMin), durationMin - MIN_DURATION_MINUTES);
+      return { start: new Date(originalStart.getTime() + delta * MINUTE_MS), end: originalEnd };
+    }
+    const endMin = minutesOfDay(originalEnd);
+    delta = Math.min(Math.max(delta, MIN_DURATION_MINUTES - durationMin), gridEnd - endMin);
+    return { start: originalStart, end: new Date(originalEnd.getTime() + delta * MINUTE_MS) };
+  };
+
+  const beginDrag = (mode: DragMode, e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    if (!draggable) {
+      // Still select it, and keep the grid from starting a "create" drag.
+      e.stopPropagation();
+      if (mode === "move") onClick();
+      return;
+    }
+    // Keep the grid from starting a "create" drag, and the edge handles from also starting a move.
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { mode, startY: e.clientY, moved: false };
+  };
+
+  const onMoveDown = (e: React.PointerEvent<HTMLElement>) => beginDrag("move", e);
+  const onResizeStartDown = (e: React.PointerEvent<HTMLElement>) => beginDrag("resize-start", e);
+  const onResizeEndDown = (e: React.PointerEvent<HTMLElement>) => beginDrag("resize-end", e);
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const current = drag.current;
+    if (!current) return;
+    const dy = e.clientY - current.startY;
+    if (!current.moved && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
+    current.moved = true;
+    const deltaMinutes = Math.round((dy / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+    setPreview(applyDelta(current.mode, deltaMinutes));
+  };
+
+  const handlePointerUp = () => {
+    const current = drag.current;
+    drag.current = null;
+    if (!current) return;
+    if (!current.moved) {
+      onClick();
+      return;
+    }
+    if (preview && (preview.start.getTime() !== originalStart.getTime() || preview.end.getTime() !== originalEnd.getTime())) {
+      onTimeChange(preview.start.toISOString(), preview.end.toISOString());
+    }
+    onClick();
+    setPreview(null);
+  };
+
+  const dragHandlers = {
+    onPointerMove: handlePointerMove,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: () => {
+      drag.current = null;
+      setPreview(null);
+    },
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`absolute left-2 right-4 flex flex-col justify-start rounded-lg bg-secondary border p-3 overflow-hidden text-left cursor-pointer ${
-        selected ? "border-primary ring-2 ring-primary" : "border-secondary"
-      }`}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      onPointerDown={onMoveDown}
+      {...dragHandlers}
+      className={`group absolute flex flex-col justify-start rounded-lg bg-secondary border p-3 overflow-hidden text-left touch-none select-none ${
+        preview ? "cursor-grabbing z-20 shadow-lg opacity-90" : draggable ? "cursor-grab" : "cursor-pointer"
+      } ${selected ? "border-primary ring-2 ring-primary" : "border-secondary"}`}
       style={{
         top: `${top}px`,
         height: `${height}px`,
+        // Overlapping events share the width in columns (8px left inset, 16px right).
+        left: `calc(8px + (100% - 24px) * ${lane.column / lane.columns})`,
+        width: `calc((100% - 24px) / ${lane.columns} - ${lane.columns > 1 ? 4 : 0}px)`,
       }}
     >
+      {/* Edge handles for changing start and end, like Google Calendar.
+          Their captured pointer events bubble up to the handlers above. */}
+      {draggable && (
+        <div
+          aria-hidden
+          onPointerDown={onResizeStartDown}
+          className="absolute inset-x-0 top-0 h-2 cursor-ns-resize"
+        />
+      )}
+      {draggable && (
+        <div
+          aria-hidden
+          onPointerDown={onResizeEndDown}
+          className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize"
+        >
+          <div className="mx-auto mt-0.5 h-1 w-8 rounded-full bg-white/60 opacity-0 group-hover:opacity-100" />
+        </div>
+      )}
+
       <p>{title}</p>
 
       <p className="text-xs text-white mt-1">
-        {formatTime(startDate)} – {endsLaterDay && `${formatDay(dayKey(endDate), "short")}, `}{formatTime(endDate)}
+        {endsLaterDay && `${formatDay(dayKey(startDate), "short")}, `}{formatTime(startDate)} –{" "}
+        {endsLaterDay && `${formatDay(dayKey(endDate), "short")}, `}{formatTime(endDate)}
       </p>
-    </button>
+    </div>
   );
 }

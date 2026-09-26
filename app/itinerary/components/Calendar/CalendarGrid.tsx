@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import CalendarEvent from "./CalendarEvent";
 import { formatHour, formatTime, toTimestamp } from "./calendarUtils";
 import type { Stop } from "../../types";
@@ -17,18 +17,60 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreateRange: (range: TimeRange) => void;
+  onTimeChange: (id: string, range: TimeRange) => void;
 };
 
 // Minutes since midnight for a y offset inside the grid, snapped to SNAP_MINUTES.
+type Lane = { column: number; columns: number };
+
+/**
+ * Side-by-side columns for overlapping events, like Google Calendar: events that
+ * overlap (directly or through a chain) share a group, and each takes the first free column.
+ */
+function layoutLanes(stops: Stop[], day: string): Map<string, Lane> {
+  const dayStart = new Date(`${day}T00:00:00`).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  const items = stops
+    .map((stop) => ({
+      id: stop.id,
+      start: Math.max(new Date(stop.start_time).getTime(), dayStart),
+      end: Math.min(new Date(stop.end_time).getTime(), dayEnd),
+    }))
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const lanes = new Map<string, Lane>();
+  let group: { id: string; column: number }[] = [];
+  let columnEnds: number[] = [];
+  let groupEnd = -Infinity;
+
+  const closeGroup = () => {
+    group.forEach(({ id, column }) => lanes.set(id, { column, columns: columnEnds.length }));
+    group = [];
+    columnEnds = [];
+  };
+
+  for (const item of items) {
+    if (item.start >= groupEnd) closeGroup();
+    let column = columnEnds.findIndex((end) => end <= item.start);
+    if (column === -1) column = columnEnds.length;
+    columnEnds[column] = item.end;
+    group.push({ id: item.id, column });
+    groupEnd = Math.max(groupEnd, item.end);
+  }
+  closeGroup();
+  return lanes;
+}
+
 function minutesAt(offsetY: number) {
   const raw = START_HOUR * 60 + (offsetY / HOUR_HEIGHT) * 60;
   const snapped = Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES;
   return Math.min(Math.max(snapped, START_HOUR * 60), END_HOUR * 60);
 }
 
-export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange }: Props) {
+export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreateRange, onTimeChange }: Props) {
   const totalHours = END_HOUR - START_HOUR;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  const lanes = useMemo(() => layoutLanes(stops, day), [stops, day]);
 
   const offsetY = (e: React.PointerEvent<HTMLDivElement>) =>
     e.clientY - e.currentTarget.getBoundingClientRect().top;
@@ -104,11 +146,14 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
         {stops.map((stop) => (
           <CalendarEvent
             key={stop.id}
+            day={day}
+            lane={lanes.get(stop.id) ?? { column: 0, columns: 1 }}
             title={stop.name}
             start={stop.start_time}
             end={stop.end_time}
             selected={stop.id === selectedId}
             onClick={() => onSelect(stop.id)}
+            onTimeChange={(start, end) => onTimeChange(stop.id, { start, end })}
           />
         ))}
 

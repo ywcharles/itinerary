@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AddStopDialog, { StopDraft } from "./components/AddStopDialog";
 import { TimeRange } from "./components/Calendar/CalendarGrid";
-import { dayKey, formatDay, toTimestamp } from "./components/Calendar/calendarUtils";
+import { dayKey, daysCovered, formatDay, toTimestamp } from "./components/Calendar/calendarUtils";
 import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
@@ -16,7 +16,7 @@ type Props = {
 };
 
 export default function ItineraryView({ itineraryId, tripName }: Props) {
-  const { stops, loading, error, addStop, updateStop, removeStop } = useStops(itineraryId);
+  const { stops, loading, error, addStop, updateStop, removeStop, refetch } = useStops(itineraryId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // null = not chosen yet; falls back to the first day with stops (they load asynchronously).
   const [chosenDay, setChosenDay] = useState<string | null>(null);
@@ -25,13 +25,18 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   const sortedStops = useMemo(() => [...stops].sort(byStartTime), [stops]);
   const day = chosenDay ?? (sortedStops[0] ? dayKey(sortedStops[0].start_time) : dayKey(new Date()));
 
+  // Activities that run past midnight belong to every day they cover.
+  const stopDays = useMemo(
+    () => new Map(sortedStops.map((stop) => [stop.id, daysCovered(stop.start_time, stop.end_time)])),
+    [sortedStops],
+  );
   const days = useMemo(
-    () => [...new Set([...sortedStops.map((stop) => dayKey(stop.start_time)), day])].sort(),
-    [sortedStops, day],
+    () => [...new Set([...[...stopDays.values()].flat(), day])].sort(),
+    [stopDays, day],
   );
   const dayStops = useMemo(
-    () => sortedStops.filter((stop) => dayKey(stop.start_time) === day),
-    [sortedStops, day],
+    () => sortedStops.filter((stop) => stopDays.get(stop.id)?.includes(day)),
+    [sortedStops, stopDays, day],
   );
   const selectedStop = dayStops.find((stop) => stop.id === selectedId) ?? null;
 
@@ -82,6 +87,16 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedStopId, addRange, deleting, deleteStop]);
 
+  const changeTime = useCallback(async (id: string, range: TimeRange) => {
+    try {
+      await updateStop(id, { start_time: range.start, end_time: range.end });
+    } catch (err) {
+      // The optimistic change was already shown; reload the real times.
+      console.error("Changing time failed", err);
+      refetch();
+    }
+  }, [updateStop, refetch]);
+
   const openAdd = (range?: TimeRange) => {
     setAddRange(range ?? { start: toTimestamp(day, 12 * 60), end: toTimestamp(day, 13 * 60) });
   };
@@ -117,6 +132,7 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onAdd={openAdd}
+            onTimeChange={changeTime}
           />
         </div>
         <div className="w-1/2 h-full flex flex-col gap-4">

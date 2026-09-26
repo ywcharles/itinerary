@@ -14,9 +14,10 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: (range?: TimeRange) => void;
+  onTimeChange: (id: string, range: TimeRange) => void;
 };
 
-const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd }: Props) => {
+const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange }: Props) => {
   return (
     <div className="rounded-2xl border h-full w-full flex flex-col p-4 gap-3">
       <div className="flex items-center justify-between gap-4">
@@ -49,7 +50,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
         </div>
       )}
 
-      <p className="text-xs text-gray-500">Drag on an empty time slot to plan something there.</p>
+      <p className="text-xs text-gray-500">Drag on an empty slot to plan something. Drag an activity to move it, or its edge to change the length.</p>
 
       <div className="w-full flex-1 min-h-0">
         <Calendar
@@ -60,6 +61,7 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
           selectedId={selectedId}
           onSelect={onSelect}
           onCreateRange={onAdd}
+          onTimeChange={onTimeChange}
         />
       </div>
     </div>

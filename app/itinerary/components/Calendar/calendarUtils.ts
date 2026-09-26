@@ -71,3 +71,21 @@ export function formatDay(day: string, format: "long" | "short" = "long") {
     ? { weekday: "long", month: "long", day: "numeric", year: "numeric" }
     : { weekday: "short", month: "short", day: "numeric" });
 }
+
+// Caps runaway ranges from bad data (e.g. an end date typed years ahead).
+const MAX_SPAN_DAYS = 14;
+
+/** Every local day (YYYY-MM-DD) from start to end, inclusive. */
+export function daysCovered(start: string | Date, end: string | Date) {
+  const days: string[] = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const last = dayKey(end);
+  while (days.length < MAX_SPAN_DAYS) {
+    const key = dayKey(cursor);
+    days.push(key);
+    if (key >= last) break;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
