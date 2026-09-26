@@ -72,6 +72,8 @@ export default function CalendarEvent({
     HOUR_HEIGHT,
   );
   const compact = height < 40;
+  // Activities cycle through the 6 pastel colors defined in globals.css.
+  const pastel = ((number - 1) % 6) + 1;
   const timeLabel = `${endsLaterDay ? `${formatDay(dayKey(startDate), "short")}, ` : ""}${formatTime(startDate)} – ${
     endsLaterDay ? `${formatDay(dayKey(endDate), "short")}, ` : ""
   }${formatTime(endDate)}`;
@@ -165,11 +167,13 @@ export default function CalendarEvent({
       }}
       onPointerDown={onMoveDown}
       {...dragHandlers}
-      // Classic calendar block: solid color, white text, thin white outline to separate neighbours.
-      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left text-white ring-1 ring-white touch-none select-none ${
-        preview ? "cursor-grabbing z-20 opacity-90" : draggable ? "cursor-grab hover:brightness-110" : "cursor-pointer hover:brightness-110"
-      } ${selected ? "z-10 bg-primary" : "bg-[#4E7D51]"}`}
+      // Classic calendar block in a pastel color; the selected one gets a blue outline.
+      className={`group absolute flex flex-col justify-start rounded-[4px] px-1.5 py-1 overflow-hidden text-left touch-none select-none ${
+        preview ? "cursor-grabbing z-20 opacity-90" : draggable ? "cursor-grab hover:brightness-[0.97]" : "cursor-pointer hover:brightness-[0.97]"
+      } ${selected ? "z-10 ring-2 ring-primary" : "ring-1 ring-surface"}`}
       style={{
+        backgroundColor: `var(--pastel-${pastel}-bg)`,
+        color: `var(--pastel-${pastel}-text)`,
         top: `${top}px`,
         height: `${height}px`,
         // Overlapping events share the width in columns (2px left inset, 8px right).
@@ -192,16 +196,16 @@ export default function CalendarEvent({
           onPointerDown={onResizeEndDown}
           className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize"
         >
-          <div className="mx-auto mt-0.5 h-1 w-8 rounded-full bg-white/60 opacity-0 group-hover:opacity-100" />
+          <div className="mx-auto mt-0.5 h-1 w-8 rounded-full bg-current opacity-0 group-hover:opacity-30" />
         </div>
       )}
 
       {/* Short blocks get title and time on one line, like a classic calendar. */}
       <p className={`text-xs font-semibold leading-4 ${compact ? "truncate" : "line-clamp-2"}`}>
         {number}. {title}
-        {compact && <span className="font-normal text-white/85">, {timeLabel}</span>}
+        {compact && <span className="font-normal opacity-75">, {timeLabel}</span>}
       </p>
-      {!compact && <p className="truncate text-[11px] leading-4 text-white/85">{timeLabel}</p>}
+      {!compact && <p className="truncate text-[11px] leading-4 opacity-75">{timeLabel}</p>}
     </div>
   );
 }

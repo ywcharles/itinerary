@@ -105,3 +105,22 @@ export function daysCovered(start: string | Date, end: string | Date) {
   }
   return days;
 }
+
+/** The day `offset` days after `day` (YYYY-MM-DD, local). */
+export function shiftDay(day: string, offset: number) {
+  const date = new Date(`${day}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  return dayKey(date);
+}
+
+// Keeps a mistyped year from creating thousands of days.
+export const MAX_TRIP_DAYS = 366;
+
+/** Every day from `start` to `end` inclusive (empty if end is before start). */
+export function daysBetween(start: string, end: string) {
+  const days: string[] = [];
+  for (let day = start; day <= end && days.length < MAX_TRIP_DAYS; day = shiftDay(day, 1)) {
+    days.push(day);
+  }
+  return days;
+}

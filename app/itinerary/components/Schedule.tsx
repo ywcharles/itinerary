@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import Calendar from "./Calendar/Calendar";
 import { TimeRange } from "./Calendar/CalendarGrid";
 import { formatDay } from "./Calendar/calendarUtils";
@@ -18,8 +18,16 @@ type Props = {
 };
 
 const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, onSelect, onAdd, onTimeChange }: Props) => {
+  // Keep the selected day's tab visible when switching days (e.g. with the arrow keys).
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabsRef.current
+      ?.querySelector<HTMLElement>('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [day]);
+
   return (
-    <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full flex flex-col p-4 gap-3">
+    <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col p-4 gap-3">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold tracking-tight">{formatDay(day)}</h2>
         <button
@@ -32,7 +40,8 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
       </div>
 
       {days.length > 1 && (
-        <div role="tablist" aria-label="Trip days" className="flex gap-1 overflow-x-auto rounded-xl bg-canvas p-1">
+        // One line; scrolls sideways on long trips.
+        <div ref={tabsRef} role="tablist" aria-label="Trip days" className="flex shrink-0 gap-1 overflow-x-auto rounded-xl bg-canvas p-1">
           {days.map((d, index) => (
             <button
               key={d}
@@ -40,8 +49,9 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
               role="tab"
               aria-selected={d === day}
               onClick={() => onDayChange(d)}
+
               className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                d === day ? "bg-white font-medium text-ink shadow-sm" : "text-muted hover:text-ink"
+                d === day ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"
               }`}
             >
               <span className="font-medium">Day {index + 1}</span>
@@ -51,7 +61,6 @@ const Schedule = ({ days, day, onDayChange, stops, loading, error, selectedId, o
         </div>
       )}
 
-      <p className="text-xs text-muted">Drag on an empty slot to plan something. Drag an activity to move it, or its edge to change the length.{days.length > 1 && " Use ← → to switch days."}</p>
 
       <div className="w-full flex-1 min-h-0">
         <Calendar

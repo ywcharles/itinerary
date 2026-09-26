@@ -3,11 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AddStopDialog, { StopDraft } from "./components/AddStopDialog";
 import { TimeRange } from "./components/Calendar/CalendarGrid";
-import { dayKey, daysCovered, formatDay, toTimestamp } from "./components/Calendar/calendarUtils";
+import { dayKey, daysBetween, daysCovered, toTimestamp } from "./components/Calendar/calendarUtils";
 import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
-import ShareButton from "./components/ShareButton";
+import TripBar from "./components/TripBar";
 import { useStops } from "./hooks/useStops";
 import { byStartTime, coordinatesOf } from "./stopUtils";
 
@@ -26,17 +26,25 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   const [addPlaceId, setAddPlaceId] = useState<string | null>(null);
 
   const sortedStops = useMemo(() => [...stops].sort(byStartTime), [stops]);
-  const day = chosenDay ?? (sortedStops[0] ? dayKey(sortedStops[0].start_time) : dayKey(new Date()));
 
   // Activities that run past midnight belong to every day they cover.
   const stopDays = useMemo(
     () => new Map(sortedStops.map((stop) => [stop.id, daysCovered(stop.start_time, stop.end_time)])),
     [sortedStops],
   );
-  const days = useMemo(
-    () => [...new Set([...[...stopDays.values()].flat(), day])].sort(),
-    [stopDays, day],
-  );
+  const activityDays = useMemo(() => [...new Set([...stopDays.values()].flat())].sort(), [stopDays]);
+
+  // The trip spans its first to last activity (today for an empty trip).
+  const today = dayKey(new Date());
+  const range = {
+    start: activityDays[0] ?? today,
+    end: activityDays[activityDays.length - 1] ?? today,
+  };
+
+  // Every day from the first to the last activity can be planned, including empty days in between.
+  const days = useMemo(() => daysBetween(range.start, range.end), [range.start, range.end]);
+  const day = chosenDay && days.includes(chosenDay) ? chosenDay : days[0];
+
   const dayStops = useMemo(
     () => sortedStops.filter((stop) => stopDays.get(stop.id)?.includes(day)),
     [sortedStops, stopDays, day],
@@ -156,21 +164,9 @@ export default function ItineraryView({ itineraryId, tripName }: Props) {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{tripName}</h1>
-          <p className="text-sm text-muted">
-            {formatDay(days[0], "short")}
-            {days.length > 1 && ` – ${formatDay(days[days.length - 1], "short")}`}
-            {` · ${days.length} ${days.length === 1 ? "day" : "days"}`}
-            {` · ${sortedStops.length} ${sortedStops.length === 1 ? "activity" : "activities"}`}
-          </p>
-        </div>
-        <ShareButton />
-      </div>
-
-      <div className="flex-1 min-h-0 flex gap-4">
+    <div className="flex-1 min-h-0 flex flex-col">
+      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} />
+      <div className="flex-1 min-h-0 flex gap-4 p-4">
         <div className="w-1/2 h-full">
           <Schedule
             days={days}

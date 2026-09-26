@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const pathname = usePathname();
   const onCreatePage = pathname === "/itinerary";
+  // Trip pages render their own compact top bar with the trip name and dates.
+  if (/^\/itinerary\/[^/]+/.test(pathname)) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-white/85 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur">
       <nav
         aria-label="Main navigation"
         className="flex h-14 items-center justify-between gap-4 px-4"
@@ -20,6 +23,7 @@ export default function Navbar() {
         >
           <Logo />
         </Link>
+        <div className="flex items-center gap-2">
         <Link
           href="/itinerary"
           aria-current={onCreatePage ? "page" : undefined}
@@ -27,6 +31,8 @@ export default function Navbar() {
         >
           + New trip
         </Link>
+        <ThemeToggle />
+        </div>
       </nav>
     </header>
   );

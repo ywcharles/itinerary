@@ -190,8 +190,8 @@ export default function CalendarGrid({ day, stops, selectedId, onSelect, onCreat
                 // (for back-to-back activities it sits on the boundary).
                 // Plain text in the gap; when there's no room it needs a white backing to sit on the blocks.
                 className={`pointer-events-auto absolute right-1 top-1/2 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap text-[11px] leading-4 ${
-                  gap < 16 ? "rounded-sm bg-white px-1 ring-1 ring-line" : ""
-                } ${tooTight ? "font-medium text-red-600" : "text-muted"}`}
+                  gap < 16 ? "rounded-sm bg-surface px-1 ring-1 ring-line" : ""
+                } ${tooTight ? "font-medium text-red-600 dark:text-red-400" : "text-muted"}`}
               >
                 <span aria-hidden>{leg.mode === "WALKING" ? "🚶" : "🚗"}</span>
                 {formatDuration(leg.durationMinutes)}

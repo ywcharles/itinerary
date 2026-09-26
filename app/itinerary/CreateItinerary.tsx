@@ -51,7 +51,7 @@ export default function CreateItinerary({ existing }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-xl px-6 py-10 flex flex-col gap-8">
-      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-6 shadow-sm">
+      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">Plan a new trip</h1>
         <p className="text-sm text-muted">
           Give your trip a name. You&apos;ll get a link you can share with the people you travel with.
@@ -72,7 +72,7 @@ export default function CreateItinerary({ existing }: Props) {
             {creating ? "Creating…" : "Create trip"}
           </button>
         </form>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         {name.trim() && slugify(name) && (
           <p className="text-xs text-muted">Link: /itinerary/{slugify(name)}</p>
         )}
@@ -86,7 +86,7 @@ export default function CreateItinerary({ existing }: Props) {
               <li key={link_slug}>
                 <Link
                   href={`/itinerary/${link_slug}`}
-                  className="block rounded-xl border border-line bg-white px-4 py-3 text-sm shadow-sm transition-shadow hover:shadow-md"
+                  className="block rounded-xl border border-line bg-surface px-4 py-3 text-sm shadow-sm transition-shadow hover:shadow-md"
                 >
                   <span className="font-medium">{link_slug.replace(/-/g, " ")}</span>
                   <span className="block text-xs text-muted">/itinerary/{link_slug}</span>

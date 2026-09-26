@@ -1,16 +1,59 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the theme chosen with the toggle (data-theme on <html>). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme inline {
   --color-primary: #2274A5;
   --color-secondary: #80AB82;
   --color-accent: #826754;
-  /* Neutrals: warm off-white canvas behind white cards, and a soft near-black for text. */
-  --color-canvas: #F4F5F1;
-  --color-ink: #1D2A33;
-  --color-muted: #66737C;
-  --color-line: #E3E6E1;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  /* The "open during your visit" badge. */
+  --color-ok-bg: var(--ok-bg);
+  --color-ok-text: var(--ok-text);
   --font-sans: var(--font-primary), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-second), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: light;
+  /* Warm off-white canvas behind white cards, soft near-black text. */
+  --canvas: #F4F5F1;
+  --surface: #FFFFFF;
+  --ink: #1D2A33;
+  --muted: #66737C;
+  --line: #E3E6E1;
+  --ok-bg: #EEF4EE;
+  --ok-text: #3F6B42;
+  /* Pastel palette for calendar activities (background / text), cycled by activity number. */
+  --pastel-1-bg: #DCEBDD; --pastel-1-text: #2E4D31; /* sage */
+  --pastel-2-bg: #D8E7F4; --pastel-2-text: #1E4460; /* sky */
+  --pastel-3-bg: #F8E0D0; --pastel-3-text: #6A391D; /* peach */
+  --pastel-4-bg: #E6DDF4; --pastel-4-text: #422F6A; /* lavender */
+  --pastel-5-bg: #F5ECC6; --pastel-5-text: #5A4811; /* butter */
+  --pastel-6-bg: #F4D8DE; --pastel-6-text: #6A2937; /* rose */
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #101416;
+  --surface: #192024;
+  --ink: #E4E9EC;
+  --muted: #95A1A9;
+  --line: #2B3439;
+  --ok-bg: #1D2D1F;
+  --ok-text: #9DCBA0;
+  /* Same hues, muted and deep for dark backgrounds. */
+  --pastel-1-bg: #253A28; --pastel-1-text: #C4E3C6;
+  --pastel-2-bg: #213447; --pastel-2-text: #C3DCF1;
+  --pastel-3-bg: #45301F; --pastel-3-text: #F3D2BD;
+  --pastel-4-bg: #332A48; --pastel-4-text: #DCD0F2;
+  --pastel-5-bg: #3F3818; --pastel-5-text: #EEE2AE;
+  --pastel-6-bg: #45252D; --pastel-6-text: #F1C9D2;
 }
 
 body {

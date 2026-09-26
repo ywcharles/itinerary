@@ -194,7 +194,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-stop-title"
-        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl flex flex-col gap-4"
+        className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl flex flex-col gap-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="add-stop-title" className="text-lg font-semibold">Add activity</h2>
@@ -215,11 +215,11 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
             {searching ? "Searching…" : asMapsUrl(query) ? "Use link" : "Search"}
           </button>
         </form>
-        <p className="-mt-2 text-xs text-gray-500">
+        <p className="-mt-2 text-xs text-muted">
           Tip: in Google Maps, tap Share on a place and paste the link here.
         </p>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {results.length > 0 && (
           <ul className="flex flex-col gap-1 max-h-48 overflow-y-auto">
@@ -229,11 +229,11 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
                   type="button"
                   onClick={() => setChosen(result)}
                   className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-                    chosen === result ? "border-primary bg-primary/10" : "hover:bg-gray-50"
+                    chosen === result ? "border-primary bg-primary/10" : "hover:bg-canvas"
                   }`}
                 >
                   <span className="font-medium">{result.name}</span>
-                  <span className="block text-xs text-gray-500">{result.address}</span>
+                  <span className="block text-xs text-muted">{result.address}</span>
                 </button>
               </li>
             ))}
@@ -254,7 +254,7 @@ export default function AddStopDialog({ tripName, searchCenter, initialRange, in
             <input type="time" step={900} value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border px-2 py-1.5" />
           </label>
         </div>
-        {invalidTime && <p className="text-sm text-red-600">End time must be after start time.</p>}
+        {invalidTime && <p className="text-sm text-red-600 dark:text-red-400">End time must be after start time.</p>}
 
         <label className="flex flex-col gap-1 text-sm">
           Notes for the group

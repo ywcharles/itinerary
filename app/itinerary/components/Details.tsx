@@ -168,7 +168,7 @@ function NotesField({ value, onSave }: NotesProps) {
     <label className="flex flex-col gap-1">
       <span className="text-sm font-semibold flex items-baseline justify-between">
         Notes for the group
-        <span className={`text-xs font-normal ${status === "error" ? "text-red-600" : "text-gray-400"}`}>
+        <span className={`text-xs font-normal ${status === "error" ? "text-red-600 dark:text-red-400" : "text-muted"}`}>
           {status === "saving" && "Saving…"}
           {status === "saved" && !dirty && "Saved"}
           {status === "error" && "Couldn't save"}
@@ -208,13 +208,13 @@ function VisitHours({ place, stop }: { place: PlaceInfo; stop: Stop }) {
 
   const badge =
     status.kind === "open"
-      ? { text: "Open during your visit", className: "bg-[#EEF4EE] text-[#3F6B42]" }
+      ? { text: "Open during your visit", className: "bg-ok-bg text-ok-text" }
       : status.kind === "closes-early"
-        ? { text: `Closes at ${status.closesAt}, before you leave`, className: "bg-amber-50 text-amber-800" }
+        ? { text: `Closes at ${status.closesAt}, before you leave`, className: "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" }
         : status.kind === "closed"
           ? {
               text: status.opensAt ? `Closed when you arrive, opens ${status.opensAt}` : "Closed when you arrive",
-              className: "bg-red-50 text-red-700",
+              className: "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300",
             }
           : null;
 
@@ -275,7 +275,7 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
 
   if (!stop) {
     return (
-      <div className="rounded-2xl border border-line bg-white shadow-sm h-full w-full flex flex-col justify-center items-center gap-2 p-6 text-center">
+      <div className="rounded-2xl border border-line bg-surface shadow-sm h-full w-full flex flex-col justify-center items-center gap-2 p-6 text-center">
         <svg viewBox="0 0 24 24" className="h-8 w-8 text-secondary" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" />
           <circle cx="12" cy="10" r="2.3" />
@@ -313,7 +313,7 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
   );
 
   return (
-    <div className="flex h-full w-full overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+    <div className="flex h-full w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
       <div className="min-w-0 flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         <div>
           <div className="flex items-start justify-between gap-2">
@@ -323,12 +323,12 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
               onClick={() => onDelete(stop.id)}
               disabled={deleting}
               title="Delete activity (Backspace)"
-              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900 dark:hover:bg-red-950/50 dark:hover:text-red-300 disabled:opacity-50"
             >
               {deleting ? "Deleting…" : "Delete"}
             </button>
           </div>
-          {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
+          {deleteError && <p className="text-xs text-red-600 dark:text-red-400">{deleteError}</p>}
           {(place?.category || place?.priceLevel) && (
             <p className="mt-0.5 text-sm font-medium text-muted">
               {[place.category, place.priceLevel].filter(Boolean).join(" · ")}
@@ -362,7 +362,7 @@ const Details = ({ stop, onDescriptionChange, onDelete, deleting, deleteError }:
         />
 
         {status === "error" && (
-          <p className="text-sm text-red-600">Couldn&apos;t load place info from Google.</p>
+          <p className="text-sm text-red-600 dark:text-red-400">Couldn&apos;t load place info from Google.</p>
         )}
 
         {place && <VisitHours place={place} stop={stop} />}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadGoogleLibrary } from "@/lib/googleMaps";
+import { useTheme } from "@/app/components/ThemeToggle";
 import { fetchLeg, formatDuration } from "@/lib/routes";
 import type { Stop } from "../types";
 import { coordinatesOf, LatLng } from "../stopUtils";
@@ -41,7 +42,10 @@ export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Prop
 
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const theme = useTheme();
 
+  // Google only sets the color scheme when a map is created, so switching themes creates a new map
+  // (pins, routes and the view are then redrawn by the effects below).
   useEffect(() => {
     let active = true;
     loadGoogleLibrary("maps").then(({ Map }) => {
@@ -50,11 +54,12 @@ export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Prop
           ...WORLD,
           mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID,
           streetViewControl: false,
+          colorScheme: theme === "dark" ? "DARK" : "LIGHT",
         }));
       }
     });
     return () => { active = false; };
-  }, []);
+  }, [theme]);
 
   // Clicking one of Google's landmarks adds it as an activity instead of opening Google's info window.
   const onPlaceClickRef = useRef(onPlaceClick);
@@ -126,8 +131,8 @@ export default function Maps({ stops, selectedId, onSelect, onPlaceClick }: Prop
         const tooTight = leg.durationMinutes > gapMinutes;
 
         const label = document.createElement("div");
-        label.className = `rounded-full border bg-white px-2 py-0.5 text-xs font-medium shadow ${
-          tooTight ? "border-red-500 text-red-600" : "border-primary text-primary"
+        label.className = `rounded-full border bg-surface px-2 py-0.5 text-xs font-medium shadow ${
+          tooTight ? "border-red-500 text-red-600 dark:text-red-400" : "border-primary text-primary"
         }`;
         label.textContent = `${leg.mode === "WALKING" ? "🚶" : "🚗"} ${formatDuration(leg.durationMinutes)}`;
         label.title = tooTight

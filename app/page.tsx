@@ -39,7 +39,7 @@ export default function Home() {
 
       <section className="grid gap-4 sm:grid-cols-3">
         {features.map(({ title, body }) => (
-          <div key={title} className="rounded-2xl border border-line bg-white p-5 shadow-sm">
+          <div key={title} className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
             <h2 className="font-semibold">{title}</h2>
             <p className="mt-1.5 text-sm text-muted">{body}</p>
           </div>

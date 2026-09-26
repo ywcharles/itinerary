@@ -20,7 +20,7 @@ export default function ShareButton() {
     <button
       type="button"
       onClick={copy}
-      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-canvas"
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium transition-colors hover:bg-canvas"
     >
       <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         {copied ? (
