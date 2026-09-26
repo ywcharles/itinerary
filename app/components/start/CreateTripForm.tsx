@@ -15,6 +15,13 @@ function slugify(name: string) {
     .slice(0, 48);
 }
 
+function firstOfNextMonth() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+}
+
 const input =
   "rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
@@ -22,7 +29,8 @@ const input =
 export default function CreateTripForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [start, setStart] = useState("");
+  // Prefilled with the 1st of next month, a typical "next trip" date; can be changed or cleared.
+  const [start, setStart] = useState(firstOfNextMonth);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

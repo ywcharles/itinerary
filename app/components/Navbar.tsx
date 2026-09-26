@@ -24,13 +24,16 @@ export default function Navbar() {
           <Logo />
         </Link>
         <div className="flex items-center gap-2">
-        <Link
-          href="/itinerary"
-          aria-current={onCreatePage ? "page" : undefined}
-          className="inline-flex h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-        >
-          + New trip
-        </Link>
+        {/* The landing page has its own create-trip form, so no extra button there. */}
+        {pathname !== "/" && (
+          <Link
+            href="/itinerary"
+            aria-current={onCreatePage ? "page" : undefined}
+            className="inline-flex h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+          >
+            + New trip
+          </Link>
+        )}
         <ThemeToggle />
         </div>
       </nav>

@@ -21,7 +21,6 @@ export default function RecentTrips({ title = "Your trips" }: { title?: string }
               className="block rounded-xl border border-line bg-surface px-4 py-3 pr-9 shadow-sm transition-shadow hover:shadow-md"
             >
               <span className="block truncate font-medium">{trip.name}</span>
-              <span className="block truncate text-xs text-muted">/itinerary/{trip.slug}</span>
             </Link>
             <button
               type="button"
