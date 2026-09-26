@@ -93,13 +93,15 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
-      <div className="flex items-start justify-between gap-2 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold leading-tight">Ideas for {timeRange(gap.start, gap.end)}</h2>
-          <p className="truncate text-xs text-muted">
-            Between {gap.from.name} and {gap.to.name}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2">
+        {/* One line: the time plus where the gap is, cut off with "…" when too long. */}
+        <h2
+          className="min-w-0 truncate text-sm font-semibold"
+          title={`Between ${gap.from.name} and ${gap.to.name}`}
+        >
+          Ideas for {timeRange(gap.start, gap.end)}
+          <span className="font-normal text-muted"> · between {gap.from.name} and {gap.to.name}</span>
+        </h2>
         <button
           type="button"
           onClick={onClose}
@@ -110,22 +112,22 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
         </button>
       </div>
 
-      <div className="flex gap-1.5 px-4 pt-3">
+      {/* Category chips and the personalize field share one row. */}
+      <div className="flex items-center gap-1.5 px-4 pt-2.5">
         {(Object.keys(CATEGORIES) as Category[]).map((c) => (
           <button
             key={c}
             type="button"
             onClick={() => switchCategory(c)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
               c === category ? "border-primary bg-primary text-white" : "border-line text-muted hover:text-ink"
             }`}
           >
             {CATEGORIES[c].label}
           </button>
         ))}
-      </div>
 
-      <form onSubmit={personalize} className="flex gap-1.5 px-4 pt-2.5">
+      <form onSubmit={personalize} className="ml-1 flex min-w-0 flex-1 gap-1.5">
         <div className="relative min-w-0 flex-1">
           <input
             value={draft}
@@ -133,7 +135,7 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
             maxLength={120}
             placeholder={`✨ Personalize: ${WISH_EXAMPLES[category]}`}
             aria-label="Personalize ideas"
-            className="w-full rounded-lg border border-line bg-surface py-1.5 pl-2.5 pr-7 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-line bg-surface py-1 pl-2.5 pr-7 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           {(draft || wish) && (
             <button
@@ -152,11 +154,12 @@ export default function Suggestions({ gap, freeMinutes, exclude, onAdd, onClose 
         <button
           type="submit"
           disabled={!draft.trim() || draft.trim() === wish}
-          className="shrink-0 rounded-lg border border-line px-3 text-sm font-medium transition-colors hover:bg-canvas disabled:opacity-40"
+          className="shrink-0 rounded-lg border border-line px-2.5 text-xs font-medium transition-colors hover:bg-canvas disabled:opacity-40"
         >
           Go
         </button>
       </form>
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {addError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{addError}</p>}
