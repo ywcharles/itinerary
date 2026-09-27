@@ -109,3 +109,19 @@ test('requires two activities in the selected day before calling Gemini', async 
     assert.equal(f.modelCalls(), 0);
   }
 });
+
+test('accepts two activities on the calendar day across a destination timezone boundary', async () => {
+  const evening = { ...stop, start_time: '2026-09-26T22:00:00Z', end_time: '2026-09-26T23:00:00Z' };
+  const late = { ...secondStop, start_time: '2026-09-27T01:00:00Z', end_time: '2026-09-27T02:00:00Z' };
+  const stops = [evening, late];
+  const { dayStart, dayEnd } = pure.dayBoundsInZone('2026-09-26', 'America/Toronto');
+  const f = fixture({ stops, output: { summary: 'Two evening activities.', observations: [], proposals: [] } });
+  const response = await f.post({
+    snapshot: pure.stopFingerprint(stops),
+    dayStart,
+    dayEnd,
+    timeZone: 'America/Toronto',
+  });
+  assert.equal(response.status, 200);
+  assert.equal(f.modelCalls(), 1);
+});

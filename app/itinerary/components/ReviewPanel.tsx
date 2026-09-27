@@ -39,7 +39,11 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
   const located = stops.find((stop) => stop.latitude != null && stop.longitude != null);
   const locationKey = `${day}|${located?.latitude}|${located?.longitude}`;
   const currentLocationWeather = locationWeather?.key === locationKey ? locationWeather : null;
-  const timeZone = currentLocationWeather?.data?.timezone ?? deviceTimeZone;
+  // The calendar groups and edits stops in the device timezone. Keep review bounds
+  // in that same timezone; using the venue/weather timezone here can recount the
+  // visible day differently for activities near midnight.
+  const timeZone = deviceTimeZone;
+  const destinationTimeZone = currentLocationWeather?.data?.timezone;
   const timeZonePending = !!located && !currentLocationWeather;
   const { dayStart, dayEnd } = dayBoundsInZone(day, timeZone);
   const bounds = { dayStart, dayEnd, lockedIds };
@@ -149,15 +153,15 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z" /></svg>
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-ink">Trip-local time</p>
+            <p className="text-xs font-semibold text-ink">Calendar and weather time</p>
             <p className="mt-0.5 text-xs leading-5 text-muted" aria-live="polite">
               {timeZonePending
                 ? `Finding the timezone near ${located?.name}…`
-                : currentLocationWeather?.data
-                  ? `${timeZone.replaceAll("_", " ")}, based on ${located?.name}. Suggestions use this local timezone.`
+                : destinationTimeZone
+                  ? `Calendar times use ${timeZone.replaceAll("_", " ")}. Weather near ${located?.name} uses ${destinationTimeZone.replaceAll("_", " ")}.`
                   : located
-                    ? `Couldn’t detect the timezone near ${located.name}. Using ${deviceTimeZone.replaceAll("_", " ")} for now.`
-                    : `Add a location to an activity to use the destination timezone. Using ${deviceTimeZone.replaceAll("_", " ")} for now.`}
+                    ? `Couldn’t detect the timezone near ${located.name}. Calendar times use ${timeZone.replaceAll("_", " ")}.`
+                    : `Calendar times and suggestions use ${timeZone.replaceAll("_", " ")}.`}
             </p>
           </div>
         </div>
