@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { collectReviewContext, checkProposedVisit } from "@/lib/reviewContext";
-import { stopFingerprint, validateProposal, type DayReview, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "@/lib/aiReview";
+import { dayBoundsInZone, stopFingerprint, validateProposal, type DayReview, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "@/lib/aiReview";
+import type { DayWeather } from "@/lib/weather";
 import type { Stop } from "../types";
 
 type Props = {
@@ -13,8 +14,9 @@ type Props = {
   onUndo: () => Promise<void>; canUndo: boolean;
 };
 type Result = DayReview & { snapshot: string; candidates: ReviewCandidate[] };
+type LocationWeather = { key: string; data?: DayWeather; error?: string };
 const button = "rounded-lg border border-line px-3 py-2 text-xs font-medium hover:bg-canvas disabled:opacity-50 disabled:cursor-not-allowed";
-const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const clock = (iso: string, timeZone: string) => new Date(iso).toLocaleTimeString(undefined, { timeZone, hour: "numeric", minute: "2-digit" });
 
 export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose, onPreview, onApply, onUndo, canUndo }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -32,10 +34,15 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
   const [instruction, setInstruction] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, string[]>>({});
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const dayStart = new Date(`${day}T00:00:00`).toISOString();
-  const endDate = new Date(`${day}T00:00:00`); endDate.setDate(endDate.getDate() + 1);
-  const bounds = { dayStart, dayEnd: endDate.toISOString(), lockedIds };
+  const [locationWeather, setLocationWeather] = useState<LocationWeather | null>(null);
+  const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const located = stops.find((stop) => stop.latitude != null && stop.longitude != null);
+  const locationKey = `${day}|${located?.latitude}|${located?.longitude}`;
+  const currentLocationWeather = locationWeather?.key === locationKey ? locationWeather : null;
+  const timeZone = currentLocationWeather?.data?.timezone ?? deviceTimeZone;
+  const timeZonePending = !!located && !currentLocationWeather;
+  const { dayStart, dayEnd } = dayBoundsInZone(day, timeZone);
+  const bounds = { dayStart, dayEnd, lockedIds };
   const snapshot = stopFingerprint(allStops);
   const stale = !!result && result.snapshot !== snapshot;
   useEffect(() => {
@@ -43,9 +50,30 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
     return () => request.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (located?.latitude == null || located.longitude == null) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ day, lat: String(located.latitude), lon: String(located.longitude) });
+    fetch(`/api/weather?${params}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Couldn’t detect the local timezone.");
+        return data as DayWeather;
+      })
+      .then((data) => setLocationWeather({ key: locationKey, data }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setLocationWeather({ key: locationKey, error: error instanceof Error ? error.message : "Couldn’t detect the local timezone." });
+      });
+    return () => controller.abort();
+  }, [day, located?.latitude, located?.longitude, locationKey]);
+
   async function review(refine?: ReviewProposal) {
     if (stops.length < 2) {
       setError("Add at least two activities to this day to get suggestions.");
+      return;
+    }
+    if (timeZonePending) {
+      setError("Wait a moment while the trip’s local timezone is being detected.");
       return;
     }
     request.current?.abort();
@@ -55,13 +83,10 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
     const extra = refine ? `Replace this suggestion: ${JSON.stringify(refine)}. Traveler says: ${instruction.trim() || "Suggest a different option."}` : "";
     const history = [...feedback, ...(extra ? [extra] : [])].slice(-20);
     try {
-      const context = await collectReviewContext(stops, allStops, `${preferences} ${instruction}`, day);
-      if (controller.signal.aborted) return;
-      const located = stops.find((s) => s.latitude != null && s.longitude != null);
-      const weather = located ? await fetch(`/api/weather?${new URLSearchParams({ day, lat: String(located.latitude), lon: String(located.longitude) })}`, { signal: controller.signal }).then((r) => r.ok ? r.json() : null).catch(() => null) : null;
+      const context = await collectReviewContext(stops, allStops, `${preferences} ${instruction}`, day, timeZone);
       if (controller.signal.aborted) return;
       setBusy("Finding suggestions for your day…");
-      const response = await fetch("/api/itinerary-review", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ itineraryId, day, dayStart, dayEnd: bounds.dayEnd, timeZone, snapshot, lockedIds, preferences, feedback: history, refine: !!refine, candidates: context.candidates, evidence: { legs: context.legs, hours: context.hours, discovery: context.discovery, weather } }) });
+      const response = await fetch("/api/itinerary-review", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ itineraryId, day, dayStart: bounds.dayStart, dayEnd: bounds.dayEnd, timeZone, snapshot, lockedIds, preferences, feedback: history, refine: !!refine, candidates: context.candidates, evidence: { legs: context.legs, hours: context.hours, discovery: context.discovery, weather: currentLocationWeather?.data ?? null } }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Couldn’t get suggestions for this day.");
       if (controller.signal.aborted) return;
@@ -118,10 +143,26 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
       <div className="flex-1 space-y-5 overflow-y-auto p-5">
         <p className="text-sm leading-relaxed text-muted">Get up to three suggestions tailored to your day. Preview each one, accept what you like, or ask for something different. Nothing changes automatically.</p>
         <div><label htmlFor="review-preferences" className="mb-2 block text-sm font-medium">What would make this day better?</label><textarea id="review-preferences" value={preferences} onChange={(e) => setPreferences(e.target.value)} maxLength={1000} rows={2} placeholder="Less walking, a relaxed pace, quiet cafés…" className="w-full rounded-lg border border-line bg-canvas p-3 text-sm" /></div>
-        <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm font-medium">Keep activities fixed ({lockedIds.length})</summary><p className="my-2 text-xs text-muted">Lock reservations and anything you don’t want moved.</p><div className="space-y-2">{stops.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={lockedIds.includes(s.id)} disabled={!!busy} onChange={(e) => { setLockedIds((ids) => e.target.checked ? [...ids, s.id] : ids.filter((id) => id !== s.id)); onPreview(null, []); setPreviewId(null); }} /><span>{clock(s.start_time)} · {s.name}</span></label>)}</div></details>
-        <p className="text-xs text-muted">Calendar times: {timeZone.replaceAll("_", " ")}. Suggestions use the same timezone as your calendar.</p>
+        <details className="rounded-xl border border-line p-3"><summary className="cursor-pointer text-sm font-medium">Keep activities fixed ({lockedIds.length})</summary><p className="my-2 text-xs text-muted">Lock reservations and anything you don’t want moved.</p><div className="space-y-2">{stops.map((s) => <label key={s.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={lockedIds.includes(s.id)} disabled={!!busy} onChange={(e) => { setLockedIds((ids) => e.target.checked ? [...ids, s.id] : ids.filter((id) => id !== s.id)); onPreview(null, []); setPreviewId(null); }} /><span>{clock(s.start_time, timeZone)} · {s.name}</span></label>)}</div></details>
+        <div className="flex gap-3 rounded-xl border border-line bg-canvas p-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface text-primary shadow-sm">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z" /></svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-ink">Trip-local time</p>
+            <p className="mt-0.5 text-xs leading-5 text-muted" aria-live="polite">
+              {timeZonePending
+                ? `Finding the timezone near ${located?.name}…`
+                : currentLocationWeather?.data
+                  ? `${timeZone.replaceAll("_", " ")}, based on ${located?.name}. Suggestions use this local timezone.`
+                  : located
+                    ? `Couldn’t detect the timezone near ${located.name}. Using ${deviceTimeZone.replaceAll("_", " ")} for now.`
+                    : `Add a location to an activity to use the destination timezone. Using ${deviceTimeZone.replaceAll("_", " ")} for now.`}
+            </p>
+          </div>
+        </div>
         {stops.length < 2 && <p role="status" className="text-sm text-muted">Add at least two activities to this day to get suggestions.</p>}
-        <div className="flex flex-wrap gap-2"><button type="button" disabled={!!busy || stops.length < 2} onClick={() => review()} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{result ? "Get fresh suggestions" : "Get suggestions"}</button>{canUndo && <button type="button" disabled={!!busy} onClick={undo} className={button}>Undo last AI change</button>}</div>
+        <div className="flex flex-wrap gap-2"><button type="button" disabled={!!busy || stops.length < 2 || timeZonePending} onClick={() => review()} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{result ? "Get fresh suggestions" : "Get suggestions"}</button>{canUndo && <button type="button" disabled={!!busy} onClick={undo} className={button}>Undo last AI change</button>}</div>
         {busy && <div role="status" className="rounded-lg bg-canvas p-3 text-sm">{busy}</div>}
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-ok-bg p-3 text-sm text-ok-text">{notice}</p>}
@@ -134,7 +175,7 @@ export default function ReviewPanel({ itineraryId, day, stops, allStops, onClose
             const isLocked = p.kind === "reschedule" && lockedIds.includes(p.stopId);
             const conflict = !isAccepted && !isDismissed && !isLocked && !stale ? validateProposal(p, allStops, result.candidates, bounds) : null;
             const disabled = !!busy || stops.length < 2 || stale || isAccepted || isDismissed || isLocked;
-            return <article key={p.id} className={`rounded-xl border p-4 ${previewId === p.id ? "border-primary" : "border-line"}`}><div className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{p.title}</h3><span className="shrink-0 text-xs text-muted">{isAccepted ? "Accepted ✓" : isDismissed ? "Dismissed" : p.kind === "add" ? "Add a stop" : "Change times"}</span></div><p className="mt-2 text-sm leading-relaxed text-muted">{p.reason}</p><div className="my-3 rounded-lg bg-canvas p-3 text-sm">{original && <div className="text-muted"><span className="mr-2 text-xs">BEFORE</span>{clock(original.start_time)} – {clock(original.end_time)}</div>}<div><span className="mr-2 text-xs text-primary">PROPOSED</span>{clock(p.start)} – {clock(p.end)}</div></div>
+            return <article key={p.id} className={`rounded-xl border p-4 ${previewId === p.id ? "border-primary" : "border-line"}`}><div className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{p.title}</h3><span className="shrink-0 text-xs text-muted">{isAccepted ? "Accepted ✓" : isDismissed ? "Dismissed" : p.kind === "add" ? "Add a stop" : "Change times"}</span></div><p className="mt-2 text-sm leading-relaxed text-muted">{p.reason}</p><div className="my-3 rounded-lg bg-canvas p-3 text-sm">{original && <div className="text-muted"><span className="mr-2 text-xs">BEFORE</span>{clock(original.start_time, timeZone)} – {clock(original.end_time, timeZone)}</div>}<div><span className="mr-2 text-xs text-primary">PROPOSED</span>{clock(p.start, timeZone)} – {clock(p.end, timeZone)}</div></div>
               {checks[p.id] && <ul className="mb-3 space-y-1 text-xs text-muted">{checks[p.id].map((c) => <li key={c}>{c}</li>)}</ul>}
               {isLocked && !isAccepted && <p className="mb-2 text-xs text-muted">This activity is locked. Unlock it to consider this change.</p>}
               {conflict && <p className="mb-2 text-xs text-muted">{conflict} You can dismiss this suggestion or ask for an alternative.</p>}

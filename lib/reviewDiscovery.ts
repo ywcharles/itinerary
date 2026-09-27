@@ -2,9 +2,9 @@ import type { Stop } from "../app/itinerary/types";
 import type { Category, Gap } from "./suggestions";
 
 /** Search within daytime calendar hours, including free time at either end of the day. */
-export function reviewGaps(stops: Stop[], day: string): Gap[] {
-  const start = new Date(`${day}T08:00:00`).getTime();
-  const end = new Date(`${day}T22:00:00`).getTime();
+export function reviewGaps(stops: Stop[], day: string, destinationHours?: { start: string; end: string }): Gap[] {
+  const start = destinationHours ? Date.parse(destinationHours.start) : new Date(`${day}T08:00:00`).getTime();
+  const end = destinationHours ? Date.parse(destinationHours.end) : new Date(`${day}T22:00:00`).getTime();
   const ordered = [...stops].sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));
   const anchor = (s: Stop) => s.latitude != null && s.longitude != null
     ? { name: s.name, position: { lat: s.latitude, lng: s.longitude } } : null;

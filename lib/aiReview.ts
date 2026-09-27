@@ -36,6 +36,39 @@ export function dayInZone(timestamp: string | Date, timeZone: string): string {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
+/** Convert a wall-clock time in an IANA timezone into an ISO timestamp. */
+export function timeInZone(day: string, timeZone: string, hour = 0, minute = 0): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const target = Date.UTC(year, month - 1, date, hour, minute);
+  let instant = target;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  for (let i = 0; i < 3; i++) {
+    const parts = formatter.formatToParts(new Date(instant));
+    const value = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const shownAsUtc = Date.UTC(value("year"), value("month") - 1, value("day"), value("hour"), value("minute"), value("second"));
+    const correction = target - shownAsUtc;
+    instant += correction;
+    if (correction === 0) break;
+  }
+  return new Date(instant).toISOString();
+}
+
+/** Exact start and end instants for a destination-local calendar day (including DST days). */
+export function dayBoundsInZone(day: string, timeZone: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  const nextDay = new Date(Date.UTC(year, month - 1, date + 1)).toISOString().slice(0, 10);
+  return { dayStart: timeInZone(day, timeZone), dayEnd: timeInZone(nextDay, timeZone) };
+}
+
 export function isIsoTime(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d{1,3})?)?(?:Z|[+-]\d\d:\d\d)$/.test(value) && Number.isFinite(Date.parse(value));
 }

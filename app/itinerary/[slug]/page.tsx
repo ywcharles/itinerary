@@ -9,9 +9,11 @@ type Props = {
   searchParams: Promise<{ start?: string | string[] }>;
 };
 
-// The itinerary table has no name column yet, so the trip is named after its link slug.
+// The itinerary table has no name column yet, so the trip is named after the readable
+// part of its link slug. A double dash marks a generated collision suffix.
 function tripNameFromSlug(slug: string) {
-  const words = decodeURIComponent(slug).replace(/[-_]+/g, " ").trim();
+  const readableSlug = decodeURIComponent(slug).split("--", 1)[0];
+  const words = readableSlug.replace(/[-_]+/g, " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

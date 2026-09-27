@@ -8,7 +8,7 @@ async function loadPureModule(path) {
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(output).toString('base64')}`);
 }
-const { validateProposal, stopFingerprint, parseReview, dayInZone } = await loadPureModule('../lib/aiReview.ts');
+const { validateProposal, stopFingerprint, parseReview, dayInZone, timeInZone, dayBoundsInZone } = await loadPureModule('../lib/aiReview.ts');
 const { forecastForDay } = await loadPureModule('../lib/weather.ts');
 const a = { id: 'a', itinerary_id: 'trip', stop_order: 1, name: 'Museum', start_time: '2026-09-26T09:00:00Z', end_time: '2026-09-26T10:00:00Z', latitude: 1, longitude: 2, description: null, google_maps_url: null, image_url: null, created_at: '' };
 const b = { ...a, id: 'b', name: 'Lunch', start_time: '2026-09-26T12:00:00Z', end_time: '2026-09-26T13:00:00Z' };
@@ -56,6 +56,13 @@ test('model output must match the executable contract', () => {
 test('local forecast date follows the destination timezone across midnight', () => {
   assert.equal(dayInZone('2026-09-26T01:00:00Z', 'America/Toronto'), '2026-09-25');
   assert.equal(dayInZone('2026-09-26T23:30:00Z', 'Asia/Tokyo'), '2026-09-27');
+});
+test('destination-local times and day bounds honor the city timezone and daylight saving changes', () => {
+  assert.equal(timeInZone('2026-09-26', 'Europe/Rome', 8), '2026-09-26T06:00:00.000Z');
+  const spring = dayBoundsInZone('2026-03-08', 'America/Toronto');
+  const fall = dayBoundsInZone('2026-11-01', 'America/Toronto');
+  assert.equal(Date.parse(spring.dayEnd) - Date.parse(spring.dayStart), 23 * 60 * 60_000);
+  assert.equal(Date.parse(fall.dayEnd) - Date.parse(fall.dayStart), 25 * 60 * 60_000);
 });
 const forecast = { timezone: 'Europe/Lisbon', daily: { time: ['2026-09-26'], weather_code: [0], temperature_2m_max: [24], temperature_2m_min: [16], precipitation_probability_max: [0] } };
 test('forecast preserves clear skies and zero rainfall instead of treating them as missing', () => {

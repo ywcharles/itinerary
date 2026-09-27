@@ -34,7 +34,33 @@ export default function TripBar({ tripName, firstDay, lastDay, onReview, canRevi
       </span>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <button type="button" onClick={onReview} disabled={!canReview} title={canReview ? "Get suggestions for the selected day" : "Add at least two activities to this day to get suggestions"} aria-label="Need Suggestions?" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-sm font-medium hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40 max-md:w-8 max-md:justify-center max-md:px-0">✦<span className="max-md:hidden">&nbsp;Need Suggestions?</span></button>
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => { if (canReview) onReview(); }}
+            aria-disabled={!canReview}
+            aria-describedby="suggestions-help"
+            aria-label="Need Suggestions?"
+            className={`inline-flex h-8 items-center rounded-lg border border-line px-3 text-sm font-medium hover:bg-canvas max-md:w-8 max-md:justify-center max-md:px-0 ${canReview ? "" : "cursor-not-allowed opacity-40"}`}
+          >
+            ✦<span className="max-md:hidden">&nbsp;Need Suggestions?</span>
+          </button>
+          <div
+            id="suggestions-help"
+            role="tooltip"
+            className="pointer-events-none invisible absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-line bg-surface p-3 text-left opacity-0 shadow-xl transition-all group-hover:visible group-hover:translate-y-0.5 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0.5 group-focus-within:opacity-100"
+          >
+            <div className="flex gap-2.5">
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${canReview ? "bg-[#f4ece6] text-accent dark:bg-[#45301f]" : "bg-canvas text-muted"}`}>✦</span>
+              <div>
+                <p className="text-xs font-semibold text-ink">{canReview ? "Review this day" : "Suggestions aren’t ready yet"}</p>
+                <p className="mt-0.5 text-xs font-normal leading-5 text-muted">
+                  {canReview ? "Get thoughtful ideas based on your plans." : "Add at least 2 activities to this day to see suggestions."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
         <Link
           href="/itinerary"
           aria-label="New trip"

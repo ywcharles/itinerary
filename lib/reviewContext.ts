@@ -3,7 +3,7 @@ import { loadGoogleLibrary } from "./googleMaps";
 import { fetchLeg } from "./routes";
 import { defaultCategory, fetchSuggestions } from "./suggestions";
 import { visitStatus, type Period } from "./openingHours";
-import { validateProposal, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "./aiReview";
+import { timeInZone, validateProposal, type ReviewBounds, type ReviewCandidate, type ReviewProposal } from "./aiReview";
 import { byStartTime, coordinatesOf, placeIdOf } from "../app/itinerary/stopUtils";
 import type { Stop } from "../app/itinerary/types";
 
@@ -18,7 +18,7 @@ export async function placeHours(stop: Stop, start = stop.start_time, end = stop
   return visitStatus(periods, start, end, place.utcOffsetMinutes ?? null);
 }
 
-export async function collectReviewContext(stops: Stop[], allStops: Stop[], preferences: string, day: string) {
+export async function collectReviewContext(stops: Stop[], allStops: Stop[], preferences: string, day: string, timeZone?: string) {
   const ordered = [...stops].sort(byStartTime);
   const excluded = new Set(allStops.flatMap((s) => [s.name.toLowerCase(), ...(placeIdOf(s) ? [placeIdOf(s)!] : [])]));
   const legs = await Promise.all(ordered.slice(1).map(async (to, i) => {
@@ -28,7 +28,8 @@ export async function collectReviewContext(stops: Stop[], allStops: Stop[], pref
   }));
   const hours = await Promise.all(ordered.map(async (s) => ({ stopId: s.id, status: await placeHours(s).catch(() => ({ kind: "unknown" })) })));
   // At most three windows and two categories per window.
-  const gaps = reviewGaps(ordered, day);
+  const destinationHours = timeZone ? { start: timeInZone(day, timeZone, 8), end: timeInZone(day, timeZone, 22) } : undefined;
+  const gaps = reviewGaps(ordered, day, destinationHours);
   const requested = requestedCategories(preferences);
   let failedSearches = 0;
   const results = await Promise.all(gaps.flatMap((gap) => {

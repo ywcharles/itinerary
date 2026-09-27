@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import AddStopDialog, { StopDraft } from "./components/AddStopDialog";
 import { TimeRange } from "./components/Calendar/CalendarGrid";
 import { dayKey, daysBetween, daysCovered, toTimestamp } from "./components/Calendar/calendarUtils";
@@ -8,7 +8,7 @@ import Details from "./components/Details";
 import Maps from "./components/Maps";
 import Schedule from "./components/Schedule";
 import TripBar from "./components/TripBar";
-import { rememberTrip } from "@/lib/recentTrips";
+import { parseRecentTrips, recentTripsSnapshot, rememberTrip, subscribeRecentTrips } from "@/lib/recentTrips";
 import Suggestions from "./components/Suggestions";
 import ReviewPanel from "./components/ReviewPanel";
 import { supabase } from "@/lib/supabase";
@@ -28,10 +28,18 @@ type Props = {
 };
 
 export default function ItineraryView({ itineraryId, slug, tripName, startDay }: Props) {
+  // A trip created in this browser already has its exact entered name saved locally.
+  // Prefer it over reconstructing a title from the shareable slug.
+  const recentTrips = useSyncExternalStore(subscribeRecentTrips, recentTripsSnapshot, () => "[]");
+  const displayTripName = useMemo(
+    () => parseRecentTrips(recentTrips).find((trip) => trip.slug === slug)?.name || tripName,
+    [recentTrips, slug, tripName],
+  );
+
   // Remember this trip in the browser so it shows up under "Your trips".
   useEffect(() => {
-    rememberTrip(slug, tripName);
-  }, [slug, tripName]);
+    rememberTrip(slug, displayTripName);
+  }, [slug, displayTripName]);
 
   const { stops, loading, error, addStop, updateStop, removeStop, refetch } = useStops(itineraryId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -310,7 +318,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <TripBar tripName={tripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length >= 2} />
+      <TripBar tripName={displayTripName} firstDay={range.start} lastDay={range.end} onReview={() => { setIdeasFor(null); setReviewOpen(true); }} canReview={!loading && dayStops.length >= 2} />
       {/* Phones: switch between calendar and map (desktop shows both). */}
       <div className="flex gap-1 border-b border-line bg-surface p-1.5 md:hidden" role="tablist" aria-label="View">
         {(["calendar", "map"] as const).map((view) => (
@@ -415,7 +423,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
       {editingStop && (
         <AddStopDialog
           key={editingStop.id}
-          tripName={tripName}
+          tripName={displayTripName}
           searchCenter={searchCenter}
           initialRange={{ start: editingStop.start_time, end: editingStop.end_time }}
           initialPlaceId={placeIdOf(editingStop)}
@@ -428,7 +436,7 @@ export default function ItineraryView({ itineraryId, slug, tripName, startDay }:
 
       {addRange && !editingStop && (
         <AddStopDialog
-          tripName={tripName}
+          tripName={displayTripName}
           searchCenter={searchCenter}
           initialRange={addRange}
           initialPlaceId={addPlaceId}
